@@ -1,0 +1,1535 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--figma-color-bg,#fff);color:var(--figma-color-text,#1a1a1a);padding:16px;font-size:13px}
+
+/* Header */
+.header-row{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+h1{font-size:16px;font-weight:700;letter-spacing:-0.02em}
+.subtitle{color:var(--figma-color-text-secondary,#666);font-size:12px;margin-top:2px}
+.sync-status{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.sync-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;background:var(--figma-color-bg-secondary,#f0f0f0);color:var(--figma-color-text-secondary,#666);transition:all .3s}
+.sync-badge.synced{background:#e6f9f1;color:#008f5d}
+.sync-badge.syncing{background:#fff3e0;color:#b57a00}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0}
+.sync-badge.syncing .sync-dot{animation:pulse .8s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+.last-updated{font-size:10px;color:var(--figma-color-text-tertiary,#aaa);text-align:right}
+
+/* Main section toggle */
+.main-tabs{display:flex;gap:4px;margin-bottom:12px;background:var(--figma-color-bg-secondary,#f0f0f0);border-radius:10px;padding:3px}
+.main-tab{flex:1;padding:9px 12px;border-radius:8px;border:none;font-size:13px;font-weight:700;cursor:pointer;background:transparent;color:var(--figma-color-text-secondary,#888);transition:all .2s;text-align:center;display:flex;align-items:center;justify-content:center;gap:6px;letter-spacing:-0.01em}
+.main-tab:hover{color:var(--figma-color-text,#333)}
+.main-tab.active{background:var(--figma-color-bg,#fff);color:var(--figma-color-text,#1a1a1a);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.main-tab .badge{font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700;background:var(--figma-color-bg-secondary,#e8e8e8);color:var(--figma-color-text-secondary,#888)}
+.main-tab.active .badge{background:#7a1c29;color:#fff}
+
+/* Stats */
+.stats{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.stat{background:var(--figma-color-bg-secondary,#f5f5f5);border-radius:8px;padding:8px 12px;flex:1;min-width:70px;text-align:center;position:relative;transition:background .3s}
+.stat.changed{background:#fff8e6}
+.stat-number{font-size:18px;font-weight:700;color:var(--figma-color-text,#1a1a1a)}
+.stat.changed .stat-number{color:#b57a00}
+.stat-label{font-size:10px;color:var(--figma-color-text-secondary,#888);margin-top:1px;text-transform:uppercase;letter-spacing:.05em}
+.stat-diff{position:absolute;top:3px;right:5px;font-size:9px;font-weight:700;color:#008f5d;opacity:0;transition:opacity .3s}
+.stat-diff.visible{opacity:1}
+.stat-diff.negative{color:#d93025}
+
+/* Collection picker (Variables section) */
+.collections-panel{margin-bottom:12px;border:1px solid var(--figma-color-border,#e0e0e0);border-radius:10px;overflow:hidden}
+.collections-header{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--figma-color-bg-secondary,#f8f8f8);border-bottom:1px solid var(--figma-color-border,#e8e8e8);font-size:12px;font-weight:700;color:var(--figma-color-text-secondary,#666);text-transform:uppercase;letter-spacing:.04em}
+.collections-header button{font-size:11px;padding:3px 10px;border-radius:6px;border:none;background:var(--figma-color-bg,#fff);color:var(--figma-color-text-secondary,#888);cursor:pointer;font-weight:600}
+.collections-header button:hover{color:var(--figma-color-text,#333)}
+.collection-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--figma-color-border,#f0f0f0);transition:background .15s}
+.collection-item:last-child{border-bottom:none}
+.collection-item:hover{background:var(--figma-color-bg-secondary,#fafafa)}
+.collection-item input[type="checkbox"]{width:16px;height:16px;accent-color:#7a1c29;cursor:pointer;flex-shrink:0}
+.collection-info{flex:1;min-width:0}
+.collection-name{font-size:13px;font-weight:600;color:var(--figma-color-text,#1a1a1a)}
+.collection-meta{font-size:11px;color:var(--figma-color-text-tertiary,#aaa);margin-top:2px;display:flex;gap:8px}
+.collection-meta span{display:inline-flex;align-items:center;gap:3px}
+
+/* Style groups accordion */
+.sg-toggle{display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;background:var(--figma-color-bg-secondary,#f8f8f8);border-bottom:1px solid var(--figma-color-border,#e8e8e8);user-select:none}
+.sg-toggle:hover{background:var(--figma-color-bg-hover,#efefef)}
+.sg-arrow{font-size:10px;color:var(--figma-color-text-tertiary,#aaa);transition:transform .25s;flex-shrink:0;width:10px}
+.sg-arrow.open{transform:rotate(90deg)}
+.sg-title{font-size:12px;font-weight:700;color:var(--figma-color-text-secondary,#666);text-transform:uppercase;letter-spacing:.04em;flex:1}
+.sg-count{font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600;background:var(--figma-color-bg,#fff);color:var(--figma-color-text-secondary,#888)}
+.sg-toggle button{font-size:11px;padding:3px 10px;border-radius:6px;border:none;background:var(--figma-color-bg,#fff);color:var(--figma-color-text-secondary,#888);cursor:pointer;font-weight:600}
+.sg-toggle button:hover{color:var(--figma-color-text,#333)}
+.sg-chips{display:flex;gap:4px;flex-wrap:wrap;padding:8px 14px}
+.sg-chips:empty{display:none}
+.sg-chip{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:600;background:#7a1c29;color:#fff;white-space:nowrap;transition:opacity .15s}
+.sg-chip-x{cursor:pointer;opacity:.6;font-size:13px;line-height:1;padding:0 1px 0 2px}
+.sg-chip-x:hover{opacity:1}
+.sg-body{max-height:0;overflow:hidden;transition:max-height .25s ease-in}
+.sg-body.open{max-height:240px;overflow-y:auto;transition:max-height .3s ease-out}
+
+/* Mode selector */
+.mode-selector{margin-bottom:12px;display:flex;gap:4px;flex-wrap:wrap}
+.mode-chip{padding:5px 14px;border-radius:20px;border:1.5px solid var(--figma-color-border,#ddd);font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--figma-color-text-secondary,#888);transition:all .2s}
+.mode-chip:hover{border-color:var(--figma-color-text-secondary,#888)}
+.mode-chip.active{background:#7a1c29;color:#fff;border-color:#7a1c29}
+
+/* Format tabs */
+.format-tabs{display:flex;gap:3px;margin-bottom:10px;background:var(--figma-color-bg-secondary,#f0f0f0);border-radius:10px;padding:3px}
+.format-tab{flex:1;padding:6px 6px;border-radius:7px;border:none;font-size:11px;font-weight:600;cursor:pointer;background:transparent;color:var(--figma-color-text-secondary,#888);transition:all .2s;text-align:center}
+.format-tab:hover{color:var(--figma-color-text,#333)}
+.format-tab.active{background:var(--figma-color-bg,#fff);color:var(--figma-color-text,#1a1a1a);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+
+/* Actions */
+.actions{display:flex;gap:6px;margin-bottom:8px}
+button.btn{padding:7px 14px;border-radius:8px;border:none;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;flex:1;display:flex;align-items:center;justify-content:center;gap:5px}
+button.btn:hover{opacity:.85}
+button.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-sync{background:#1a1a1a;color:#fff}
+.btn-sync:hover:not(:disabled){background:#333}
+.btn-sync.syncing{background:#b57a00;pointer-events:none}
+.btn-sync svg{width:13px;height:13px}
+.btn-sync.syncing svg{animation:spin .6s linear infinite}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.btn-primary{background:#7a1c29;color:#fff}
+.btn-secondary{background:var(--figma-color-bg-secondary,#eee);color:var(--figma-color-text,#333)}
+.btn-close{background:transparent;color:var(--figma-color-text-secondary,#888);flex:0;padding:7px 10px}
+.btn-docs{background:#1E293B;color:#fff;width:100%;margin-bottom:12px;padding:10px 16px;font-size:13px;border-radius:8px;border:none;font-weight:700;cursor:pointer;transition:all .2s;letter-spacing:.02em}
+.btn-docs:hover:not(:disabled){background:#334155}
+.btn-docs:disabled{opacity:.35;cursor:not-allowed}
+.btn-docs.generating{background:#b57a00;pointer-events:none}
+
+/* Output */
+textarea{width:100%;height:calc(100vh - 400px);min-height:120px;border:1px solid var(--figma-color-border,#ddd);border-radius:8px;padding:10px;font-family:'SF Mono','Fira Code',monospace;font-size:11px;line-height:1.5;resize:vertical;background:var(--figma-color-bg-secondary,#fafafa);color:var(--figma-color-text,#1a1a1a)}
+textarea:focus{outline:2px solid #7a1c29;border-color:transparent}
+.file-hint{margin-top:4px;font-size:11px;color:var(--figma-color-text-tertiary,#aaa);text-align:right}
+
+/* Sections show/hide */
+.section{display:none}
+.section.active{display:block}
+
+/* Toast */
+.toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:8px 20px;border-radius:20px;font-size:12px;font-weight:600;opacity:0;transition:opacity .3s;pointer-events:none;z-index:10}
+.toast.visible{opacity:1}
+
+/* Empty state */
+.empty-state{text-align:center;padding:32px 16px;color:var(--figma-color-text-tertiary,#aaa)}
+.empty-state .empty-icon{font-size:32px;margin-bottom:8px;opacity:.5}
+.empty-state p{font-size:13px;line-height:1.5}
+
+/* Mini mode */
+.mini-bar{display:none;align-items:center;justify-content:space-between;padding:10px 16px;height:44px}
+.mini-status{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--figma-color-text,#1a1a1a)}
+.mini-dot{width:8px;height:8px;border-radius:50%;background:#008f5d;flex-shrink:0}
+.mini-dot.inactive{background:var(--figma-color-text-tertiary,#aaa)}
+.mini-actions{display:flex;align-items:center;gap:10px}
+.mini-updated{font-size:11px;color:var(--figma-color-text-tertiary,#aaa);font-weight:600}
+.mini-expand{background:none;border:1px solid var(--figma-color-border,#ddd);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px;color:var(--figma-color-text-secondary,#666);font-weight:600}
+.mini-expand:hover{background:var(--figma-color-bg-secondary,#f0f0f0)}
+body.minimized .header-row,body.minimized .main-tabs,body.minimized .section,body.minimized .format-tabs,body.minimized .actions,body.minimized textarea,body.minimized .file-hint,body.minimized .toast{display:none!important}
+body.minimized{padding:0}
+body.minimized .mini-bar{display:flex}
+.btn-minimize{background:none;border:1px solid var(--figma-color-border,#ddd);border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:18px;line-height:1;color:var(--figma-color-text-secondary,#888);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.btn-minimize:hover{background:var(--figma-color-bg-secondary,#f0f0f0)}
+.live-badge{display:none;align-items:center;gap:5px;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:600;background:#e6f9f1;color:#008f5d}
+.live-badge.active{display:inline-flex}
+.live-dot{width:6px;height:6px;border-radius:50%;background:#008f5d;animation:livePulse 2s ease-in-out infinite}
+@keyframes livePulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* Variable groups modal */
+.var-modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);z-index:100;align-items:center;justify-content:center}
+.var-modal-overlay.open{display:flex}
+.var-modal{background:var(--figma-color-bg,#fff);border-radius:12px;width:calc(100% - 32px);max-height:calc(100% - 48px);display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.25)}
+.var-modal-header{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--figma-color-border,#e0e0e0)}
+.var-modal-header h2{font-size:14px;font-weight:700;color:var(--figma-color-text,#1a1a1a)}
+.var-modal-header .var-modal-sub{font-size:11px;color:var(--figma-color-text-tertiary,#aaa);margin-top:2px;font-weight:400}
+.var-modal-close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--figma-color-text-secondary,#888);padding:0 4px;line-height:1}
+.var-modal-close:hover{color:var(--figma-color-text,#333)}
+.var-modal-actions{display:flex;align-items:center;gap:8px;padding:8px 16px;border-bottom:1px solid var(--figma-color-border,#e8e8e8)}
+.var-modal-actions button{font-size:11px;padding:4px 12px;border-radius:6px;border:none;background:var(--figma-color-bg-secondary,#f0f0f0);color:var(--figma-color-text-secondary,#888);cursor:pointer;font-weight:600}
+.var-modal-actions button:hover{color:var(--figma-color-text,#333)}
+.var-modal-count{font-size:11px;color:var(--figma-color-text-tertiary,#aaa);margin-left:auto;font-weight:600}
+.var-modal-body{flex:1;overflow-y:auto;padding:4px 0;max-height:340px}
+.var-modal-item{display:flex;align-items:center;gap:10px;padding:8px 16px;transition:background .15s;cursor:pointer}
+.var-modal-item:hover{background:var(--figma-color-bg-secondary,#fafafa)}
+.var-modal-item input{width:16px;height:16px;accent-color:#7a1c29;cursor:pointer;flex-shrink:0}
+.var-modal-item-name{font-size:13px;font-weight:600;color:var(--figma-color-text,#1a1a1a);flex:1}
+.var-modal-item-count{font-size:12px;color:var(--figma-color-text-tertiary,#aaa);font-weight:700;min-width:32px;text-align:right}
+.var-modal-footer{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--figma-color-border,#e0e0e0)}
+.var-modal-footer .btn{flex:0;padding:8px 20px}
+.var-modal-group{border-bottom:1px solid var(--figma-color-border,#f0f0f0)}
+.var-modal-group:last-child{border-bottom:none}
+.var-expand{width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:var(--figma-color-text-tertiary,#aaa);transition:transform .2s;cursor:pointer;flex-shrink:0;border-radius:4px}
+.var-expand:hover{background:var(--figma-color-bg-secondary,#f0f0f0);color:var(--figma-color-text,#333)}
+.var-expand.open{transform:rotate(90deg)}
+.var-expand.hidden{visibility:hidden;pointer-events:none}
+.var-modal-children{display:none}
+.var-modal-children.open{display:block}
+.var-modal-item.child{padding-left:54px}
+.var-modal-item-sub{font-size:11px;color:var(--figma-color-text-tertiary,#aaa);margin-left:4px;font-weight:400}
+</style>
+</head>
+<body>
+
+<!-- Mini bar (visible when minimised) -->
+<div class="mini-bar" id="mini-bar">
+  <div class="mini-status">
+    <span class="mini-dot inactive" id="mini-dot"></span>
+    <span id="mini-label">No doc</span>
+  </div>
+  <div class="mini-actions">
+    <span class="mini-updated" id="mini-updated"></span>
+    <button class="mini-expand" id="btn-expand" type="button" title="Expand">&#x2197;</button>
+  </div>
+</div>
+
+<!-- Header -->
+<div class="header-row">
+  <div>
+    <h1>DS Extractor <span style="font-weight:400;font-size:12px;color:var(--figma-color-text-tertiary,#aaa)">v2</span></h1>
+    <p class="subtitle" id="subtitle">Loading...</p>
+  </div>
+  <div class="sync-status">
+    <div class="live-badge" id="live-badge"><span class="live-dot"></span> Doc live</div>
+    <div class="sync-badge" id="sync-badge"><span class="sync-dot"></span><span id="sync-label">Waiting</span></div>
+    <div class="last-updated" id="last-updated"></div>
+    <button class="btn-minimize" id="btn-minimize" type="button" title="Minimise">&#x2212;</button>
+  </div>
+</div>
+
+<!-- Main section toggle: Styles vs Variables -->
+<div class="main-tabs" id="main-tabs">
+  <button class="main-tab active" data-section="styles" type="button">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.70226 12.7583C10.0985 12.7584 11.2308 13.8905 11.2308 15.2868V20.2252C11.2303 21.6212 10.0982 22.7535 8.70226 22.7537H3.76384C2.36803 22.7533 1.23577 21.621 1.23535 20.2252V15.2868C1.23535 13.8906 2.36776 12.7586 3.76384 12.7583H8.70226ZM21.8714 21.415H14.0529V19.6503H21.8714V21.415ZM3.76384 14.523C3.34238 14.5233 3.00006 14.8652 3.00006 15.2868V20.2252C3.00048 20.6464 3.34262 20.9886 3.76384 20.989H8.70226C9.12364 20.9888 9.46563 20.6465 9.46605 20.2252V15.2868C9.46605 14.8651 9.12389 14.5231 8.70226 14.523H3.76384ZM21.8714 15.8603H14.0529V14.0956H21.8714V15.8603ZM8.70226 1.23529C10.0985 1.23546 11.2307 2.36754 11.2308 3.76378V8.7022C11.2306 10.0983 10.0984 11.2305 8.70226 11.2307H3.76384C2.36786 11.2303 1.23553 10.0982 1.23535 8.7022V3.76378C1.2354 2.36765 2.36779 1.23565 3.76384 1.23529H8.70226ZM21.8714 9.89338H14.0529V8.12867H21.8714V9.89338ZM3.76384 3C3.34241 3.00036 3.00011 3.34227 3.00006 3.76378V8.7022C3.00023 9.12361 3.34248 9.46563 3.76384 9.46599H8.70226C9.12378 9.46582 9.46588 9.12372 9.46605 8.7022V3.76378C9.466 3.34216 9.12386 3.00017 8.70226 3H3.76384ZM21.8714 4.33731H14.0529V2.57261H21.8714V4.33731Z" fill="currentColor"/></svg>
+    Styles <span class="badge" id="badge-styles">0</span>
+  </button>
+  <button class="main-tab" data-section="variables" type="button">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.756 12.7279C10.1368 12.7283 11.2568 13.848 11.2569 15.2289V20.0832C11.2569 21.4641 10.1368 22.5838 8.756 22.5841H3.90168C2.52061 22.5841 1.40076 21.4643 1.40076 20.0832V15.2289C1.40083 13.8478 2.52064 12.7279 3.90168 12.7279H8.756ZM20.0832 12.7279C21.4643 12.7279 22.5841 13.8478 22.5841 15.2289V20.0832C22.5841 21.4643 21.4643 22.5841 20.0832 22.5841H15.2289C13.848 22.5838 12.728 21.4641 12.728 20.0832V15.2289C12.728 13.848 13.8481 12.7282 15.2289 12.7279H20.0832ZM3.90168 14.4926C3.49526 14.4926 3.16553 14.8225 3.16546 15.2289V20.0832C3.16546 20.4897 3.4952 20.8194 3.90168 20.8194H8.756C9.16219 20.8191 9.49221 20.4895 9.49221 20.0832V15.2289C9.49214 14.8227 9.16214 14.493 8.756 14.4926H3.90168ZM15.2289 14.4926C14.8227 14.4929 14.4927 14.8226 14.4927 15.2289V20.0832C14.4927 20.4895 14.8226 20.8191 15.2289 20.8194H20.0832C20.4897 20.8194 20.8194 20.4897 20.8194 20.0832V15.2289C20.8193 14.8224 20.4896 14.4926 20.0832 14.4926H15.2289ZM8.756 1.39935C10.1367 1.39967 11.2567 2.51959 11.2569 3.90027V8.75459C11.2569 10.1355 10.1368 11.2552 8.756 11.2555H3.90168C2.5206 11.2555 1.40076 10.1357 1.40076 8.75459V3.90027C1.40099 2.51939 2.52074 1.39935 3.90168 1.39935H8.756ZM20.0832 1.39935C21.4642 1.39935 22.5839 2.5194 22.5841 3.90027V8.75459C22.5841 10.1357 21.4643 11.2555 20.0832 11.2555H15.2289C13.848 11.2552 12.728 10.1355 12.728 8.75459V3.90027C12.7282 2.51955 13.8482 1.39962 15.2289 1.39935H20.0832ZM3.90168 3.16406C3.49536 3.16406 3.16569 3.49401 3.16546 3.90027V8.75459C3.16546 9.16105 3.49522 9.4908 3.90168 9.4908H8.756C9.16218 9.49048 9.49221 9.16085 9.49221 8.75459V3.90027C9.49198 3.49421 9.16204 3.16438 8.756 3.16406H3.90168ZM15.2289 3.16406C14.8228 3.16433 14.4929 3.49417 14.4927 3.90027V8.75459C14.4927 9.16089 14.8227 9.49053 15.2289 9.4908H20.0832C20.4897 9.4908 20.8194 9.16106 20.8194 8.75459V3.90027C20.8192 3.494 20.4895 3.16406 20.0832 3.16406H15.2289Z" fill="currentColor"/></svg>
+    Variables <span class="badge" id="badge-variables">0</span>
+  </button>
+</div>
+
+<!-- ══════ STYLES SECTION ══════ -->
+<div class="section active" id="section-styles">
+  <!-- Style groups accordion -->
+  <div class="collections-panel" id="style-groups-panel">
+    <div class="sg-toggle" id="sg-toggle">
+      <span class="sg-arrow" id="sg-arrow">&#x25B8;</span>
+      <span class="sg-title">Style Groups</span>
+      <span class="sg-count" id="sg-count">0 / 0</span>
+      <button type="button" id="btn-sg-all">All</button>
+      <button type="button" id="btn-sg-none">None</button>
+    </div>
+    <div class="sg-chips" id="sg-chips"></div>
+    <div class="sg-body" id="sg-body">
+      <div id="style-groups-list"></div>
+    </div>
+  </div>
+
+  <div class="stats" id="stats-styles">
+    <div class="stat" id="stat-paint"><div class="stat-diff" id="diff-paint"></div><div class="stat-number" id="count-paint">0</div><div class="stat-label">Paint</div></div>
+    <div class="stat" id="stat-text"><div class="stat-diff" id="diff-text"></div><div class="stat-number" id="count-text">0</div><div class="stat-label">Text</div></div>
+    <div class="stat" id="stat-effect"><div class="stat-diff" id="diff-effect"></div><div class="stat-number" id="count-effect">0</div><div class="stat-label">Effect</div></div>
+    <div class="stat" id="stat-grid"><div class="stat-diff" id="diff-grid"></div><div class="stat-number" id="count-grid">0</div><div class="stat-label">Grid</div></div>
+  </div>
+
+  <button class="btn-docs" id="btn-docs" type="button" disabled>&#x25B8; Generate Documentation</button>
+</div>
+
+<!-- ══════ VARIABLES SECTION ══════ -->
+<div class="section" id="section-variables">
+  <!-- Collection picker -->
+  <div class="collections-panel" id="collections-panel">
+    <div class="collections-header">
+      <span>Collections</span>
+      <div>
+        <button type="button" id="btn-select-all">All</button>
+        <button type="button" id="btn-select-none">None</button>
+      </div>
+    </div>
+    <div id="collections-list"></div>
+  </div>
+
+  <!-- Mode selector -->
+  <div class="mode-selector" id="mode-selector"></div>
+
+  <!-- Variable stats -->
+  <div class="stats" id="stats-variables"></div>
+
+  <button class="btn-docs" id="btn-var-docs" type="button" disabled>&#x25B8; Generate Variables Documentation</button>
+</div>
+
+<!-- Format tabs (shared) -->
+<div class="format-tabs" id="format-tabs">
+  <button class="format-tab active" data-format="figma" type="button">JSON</button>
+  <button class="format-tab" data-format="css" type="button">CSS</button>
+  <button class="format-tab" data-format="flutter" type="button">Flutter</button>
+  <button class="format-tab" data-format="dtcg" type="button">W3C DTCG</button>
+</div>
+
+<!-- Action buttons -->
+<div class="actions">
+  <button class="btn btn-sync" id="btn-sync" type="button">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+    <span id="sync-text">Sync</span>
+  </button>
+  <button class="btn btn-primary" id="btn-copy" type="button" disabled>Copy</button>
+  <button class="btn btn-secondary" id="btn-download" type="button" disabled>Download</button>
+  <button class="btn btn-close" id="btn-close" type="button">&#x2715;</button>
+</div>
+
+<textarea id="output" readonly placeholder="Loading..."></textarea>
+<div class="file-hint" id="file-hint"></div>
+<div class="toast" id="toast"></div>
+
+<!-- Variable groups modal -->
+<div class="var-modal-overlay" id="var-modal-overlay">
+  <div class="var-modal">
+    <div class="var-modal-header">
+      <div>
+        <h2>Select groups to document</h2>
+        <div class="var-modal-sub" id="var-modal-sub">Components collection</div>
+      </div>
+      <button class="var-modal-close" id="var-modal-close" type="button">&times;</button>
+    </div>
+    <div class="var-modal-actions">
+      <button type="button" id="var-modal-all">All</button>
+      <button type="button" id="var-modal-none">None</button>
+      <span class="var-modal-count" id="var-modal-count">0 / 0</span>
+    </div>
+    <div class="var-modal-body" id="var-modal-body"></div>
+    <div class="var-modal-footer">
+      <button class="btn btn-secondary" id="var-modal-cancel" type="button">Cancel</button>
+      <button class="btn btn-primary" id="var-modal-generate" type="button">Generate</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════
+
+let stylesData = null;
+let variablesData = null;
+let currentSection = 'styles';
+let currentFormat = 'figma';
+let selectedCollections = new Set();
+let selectedModes = new Set();    // multi-select modes
+let selectedStyleGroups = new Set();
+let sgOpen = false;
+let allModes = [];
+let syncCount = 0;
+let prevStylesBreakdown = null;
+let lastSyncTime = null;
+let timerInterval = null;
+
+// ═══════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════
+
+function toSlug(name) {
+  return name.replace(/\//g, '-').replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '').toLowerCase();
+}
+function toCamel(name) {
+  const parts = name.replace(/\//g, ' ').replace(/[^a-zA-Z0-9 ]/g, '').trim().split(/\s+/);
+  return parts.map((p, i) => i === 0 ? p.toLowerCase() : p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join('');
+}
+function hexToFlutterColor(hex, alpha) {
+  const clean = hex.replace('#', '').toUpperCase();
+  const a = alpha !== undefined ? Math.round(alpha * 255) : 255;
+  return 'Color(0x' + a.toString(16).toUpperCase().padStart(2, '0') + clean + ')';
+}
+function fontStyleToWeight(style) {
+  if (!style) return 400;
+  const s = style.toLowerCase();
+  if (s.includes('thin') || s.includes('hairline')) return 100;
+  if (s.includes('extralight') || s.includes('ultralight')) return 200;
+  if (s.includes('light')) return 300;
+  if (s.includes('regular') || s.includes('normal') || s === 'roman') return 400;
+  if (s.includes('medium')) return 500;
+  if (s.includes('semibold') || s.includes('demibold')) return 600;
+  if (s.includes('extrabold') || s.includes('ultrabold')) return 800;
+  if (s.includes('bold')) return 700;
+  if (s.includes('black') || s.includes('heavy')) return 900;
+  return 400;
+}
+function alphaToHex(a) {
+  if (a === undefined || a >= 1) return '';
+  return Math.round(a * 255).toString(16).padStart(2, '0');
+}
+
+// ═══════════════════════════════════════
+// STYLE GROUP HELPERS
+// ═══════════════════════════════════════
+
+function getStyleGroup(name) {
+  const idx = name.indexOf('/');
+  return idx > 0 ? name.substring(0, idx) : name;
+}
+
+function getFilteredStyles() {
+  if (!stylesData) return null;
+  if (selectedStyleGroups.size === 0) return stylesData;
+  return {
+    _meta: stylesData._meta,
+    paintStyles: stylesData.paintStyles.filter(s => selectedStyleGroups.has(getStyleGroup(s.name))),
+    textStyles: stylesData.textStyles.filter(s => selectedStyleGroups.has(getStyleGroup(s.name))),
+    effectStyles: stylesData.effectStyles.filter(s => selectedStyleGroups.has(getStyleGroup(s.name))),
+    gridStyles: stylesData.gridStyles.filter(s => selectedStyleGroups.has(getStyleGroup(s.name))),
+  };
+}
+
+function updateStyleGroupChips() {
+  const container = document.getElementById('sg-chips');
+  const total = document.querySelectorAll('#style-groups-list input[type="checkbox"]').length;
+  document.getElementById('sg-count').textContent = selectedStyleGroups.size + ' / ' + total;
+
+  container.innerHTML = '';
+  for (const name of [...selectedStyleGroups].sort((a, b) => a.localeCompare(b))) {
+    const chip = document.createElement('span');
+    chip.className = 'sg-chip';
+    chip.innerHTML = name + ' <span class="sg-chip-x" data-group="' + name.replace(/"/g, '&quot;') + '">&times;</span>';
+    container.appendChild(chip);
+  }
+}
+
+function buildStyleGroupsList() {
+  const list = document.getElementById('style-groups-list');
+  if (!stylesData) { list.innerHTML = ''; updateStyleGroupChips(); return; }
+
+  // Collect all groups with per-type counts
+  const groups = new Map();
+  const addToGroup = (name, type) => {
+    const g = getStyleGroup(name);
+    if (!groups.has(g)) groups.set(g, { paint: 0, text: 0, effect: 0, grid: 0 });
+    groups.get(g)[type]++;
+  };
+  for (const s of stylesData.paintStyles) addToGroup(s.name, 'paint');
+  for (const s of stylesData.textStyles) addToGroup(s.name, 'text');
+  for (const s of stylesData.effectStyles) addToGroup(s.name, 'effect');
+  for (const s of stylesData.gridStyles) addToGroup(s.name, 'grid');
+
+  // Select all groups by default
+  selectedStyleGroups.clear();
+  list.innerHTML = '';
+
+  // Sort groups alphabetically
+  const sorted = [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+
+  for (const [name, counts] of sorted) {
+    selectedStyleGroups.add(name);
+    const total = counts.paint + counts.text + counts.effect + counts.grid;
+    const parts = [];
+    if (counts.paint) parts.push(counts.paint + ' paint');
+    if (counts.text) parts.push(counts.text + ' text');
+    if (counts.effect) parts.push(counts.effect + ' effect');
+    if (counts.grid) parts.push(counts.grid + ' grid');
+
+    const div = document.createElement('div');
+    div.className = 'collection-item';
+    div.innerHTML = '<input type="checkbox" checked data-style-group="' + name.replace(/"/g, '&quot;') + '">' +
+      '<div class="collection-info">' +
+      '<div class="collection-name">' + name + '</div>' +
+      '<div class="collection-meta"><span>' + total + ' style' + (total > 1 ? 's' : '') + '</span><span>' + parts.join(' \u2022 ') + '</span></div>' +
+      '</div>';
+    list.appendChild(div);
+  }
+
+  updateStyleGroupChips();
+}
+
+// ═══════════════════════════════════════
+// STYLES FORMAT CONVERTERS
+// ═══════════════════════════════════════
+
+function formatStylesCSS(data) {
+  let o = '/* Styles \u2014 CSS Custom Properties */\n/* ' + data._meta.fileName + ' \u2014 ' + data._meta.exportedAt + ' */\n\n:root {\n';
+  if (data.paintStyles.length) {
+    o += '  /* Colours */\n';
+    for (const s of data.paintStyles) {
+      const p = s.paints[0];
+      if (p && p.type === 'SOLID' && p.color) {
+        const a = p.color.a !== undefined ? p.color.a : 1;
+        o += '  --' + toSlug(s.name) + ': ' + (a < 1 ? 'rgba(' + p.color.r + ',' + p.color.g + ',' + p.color.b + ',' + a.toFixed(2) + ')' : p.color.hex) + ';\n';
+      }
+    }
+    o += '\n';
+  }
+  if (data.textStyles.length) {
+    o += '  /* Typography */\n';
+    for (const s of data.textStyles) {
+      const slug = toSlug(s.name);
+      o += '  --' + slug + '-family: \'' + s.fontFamily + '\', sans-serif;\n';
+      o += '  --' + slug + '-size: ' + s.fontSize.toFixed(2) + 'px;\n';
+      o += '  --' + slug + '-weight: ' + fontStyleToWeight(s.fontStyle) + ';\n';
+      if (s.lineHeight.unit !== 'AUTO') {
+        o += '  --' + slug + '-line-height: ' + (s.lineHeight.unit === 'PERCENT' ? (s.lineHeight.value / 100).toFixed(3) : s.lineHeight.value.toFixed(2) + 'px') + ';\n';
+      }
+    }
+    o += '\n';
+  }
+  if (data.effectStyles.length) {
+    o += '  /* Effects */\n';
+    for (const s of data.effectStyles) {
+      const shadows = s.effects.filter(e => (e.type === 'DROP_SHADOW' || e.type === 'INNER_SHADOW') && e.visible).map(e => {
+        const c = e.color;
+        return (e.type === 'INNER_SHADOW' ? 'inset ' : '') + (e.offset ? e.offset.x : 0) + 'px ' + (e.offset ? e.offset.y : 0) + 'px ' + (e.radius || 0) + 'px ' + (e.spread || 0) + 'px ' + (c ? 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + (c.a !== undefined ? c.a.toFixed(2) : '1') + ')' : 'rgba(0,0,0,0.1)');
+      });
+      if (shadows.length) o += '  --' + toSlug(s.name) + ': ' + shadows.join(', ') + ';\n';
+    }
+  }
+  o += '}\n';
+  return o;
+}
+
+function formatStylesFlutter(data) {
+  let o = "// Styles \u2014 Flutter/Dart\n// " + data._meta.fileName + "\n\nimport 'package:flutter/material.dart';\n\nabstract class DSStyles {\n  DSStyles._();\n\n";
+  if (data.paintStyles.length) {
+    o += '  // Colours\n';
+    for (const s of data.paintStyles) { const p = s.paints[0]; if (p && p.type === 'SOLID' && p.color) { o += '  static const ' + toCamel(s.name) + ' = ' + hexToFlutterColor(p.color.hex, p.color.a) + ';\n'; } }
+    o += '\n';
+  }
+  if (data.textStyles.length) {
+    o += '  // Typography\n';
+    for (const s of data.textStyles) {
+      o += '  static const ' + toCamel(s.name) + " = TextStyle(\n    fontFamily: '" + s.fontFamily + "',\n    fontSize: " + s.fontSize.toFixed(1) + ',\n    fontWeight: FontWeight.w' + fontStyleToWeight(s.fontStyle) + ',\n';
+      if (s.lineHeight.unit !== 'AUTO') o += '    height: ' + (s.lineHeight.unit === 'PERCENT' ? (s.lineHeight.value / 100).toFixed(3) : (s.lineHeight.value / s.fontSize).toFixed(3)) + ',\n';
+      o += '  );\n\n';
+    }
+  }
+  if (data.effectStyles.length) {
+    o += '  // Effects\n';
+    for (const s of data.effectStyles) {
+      const sh = s.effects.filter(e => (e.type === 'DROP_SHADOW' || e.type === 'INNER_SHADOW') && e.visible);
+      if (sh.length) { o += '  static const ' + toCamel(s.name) + ' = [\n'; for (const e of sh) { const c = e.color; o += '    BoxShadow(color: ' + (c ? hexToFlutterColor(c.hex, c.a) : 'Color(0x1A000000)') + ', offset: Offset(' + (e.offset ? e.offset.x : 0) + ', ' + (e.offset ? e.offset.y : 0) + '), blurRadius: ' + (e.radius || 0) + ', spreadRadius: ' + (e.spread || 0) + '),\n'; } o += '  ];\n\n'; }
+    }
+  }
+  o += '}\n';
+  return o;
+}
+
+function formatStylesDTCG(data) {
+  const t = { $description: 'Styles from ' + data._meta.fileName };
+  if (data.paintStyles.length) { t.color = {}; for (const s of data.paintStyles) { const p = s.paints[0]; if (p && p.type === 'SOLID' && p.color) { setNested(t.color, s.name, { $type: 'color', $value: p.color.hex }); } } }
+  if (data.textStyles.length) { t.typography = {}; for (const s of data.textStyles) { const lh = s.lineHeight.unit === 'AUTO' ? 'auto' : s.lineHeight.unit === 'PERCENT' ? s.lineHeight.value + '%' : s.lineHeight.value.toFixed(2) + 'px'; setNested(t.typography, s.name, { $type: 'typography', $value: { fontFamily: s.fontFamily, fontWeight: fontStyleToWeight(s.fontStyle), fontSize: s.fontSize.toFixed(2) + 'px', lineHeight: lh } }); } }
+  if (data.effectStyles.length) { t.shadow = {}; for (const s of data.effectStyles) { const sh = s.effects.filter(e => (e.type === 'DROP_SHADOW' || e.type === 'INNER_SHADOW') && e.visible); if (sh.length) { setNested(t.shadow, s.name, { $type: 'shadow', $value: sh.map(e => ({ color: (e.color ? e.color.hex + alphaToHex(e.color.a) : '#0000001a'), offsetX: (e.offset ? e.offset.x : 0) + 'px', offsetY: (e.offset ? e.offset.y : 0) + 'px', blur: (e.radius || 0) + 'px', spread: (e.spread || 0) + 'px' })) }); } } }
+  return JSON.stringify(t, null, 2);
+}
+
+function setNested(obj, path, value) {
+  const parts = path.split('/');
+  let target = obj;
+  for (let i = 0; i < parts.length - 1; i++) { const k = parts[i].trim(); if (!target[k]) target[k] = {}; target = target[k]; }
+  target[parts[parts.length - 1].trim()] = value;
+}
+
+// ═══════════════════════════════════════
+// VARIABLES FORMAT CONVERTERS
+// ═══════════════════════════════════════
+
+function getFilteredVariables() {
+  if (!variablesData || !variablesData.collections) return [];
+  return variablesData.collections.filter(c => selectedCollections.has(c.id));
+}
+
+function resolveValueStr(val) {
+  if (!val) return 'null';
+  if (val.type === 'alias') return '{' + val.aliasName + '}';
+  if (val.type === 'color') return val.hex;
+  if (val.type === 'number') return String(val.value);
+  if (val.type === 'string') return '"' + val.value + '"';
+  if (val.type === 'boolean') return String(val.value);
+  return String(val.value || 'unknown');
+}
+
+function getActiveModes() {
+  if (selectedModes.size === 0) return allModes.length ? allModes : [];
+  return [...selectedModes];
+}
+
+function formatVariablesFigma() {
+  const cols = getFilteredVariables();
+  const result = { _meta: variablesData._meta, collections: [] };
+  const activeModes = getActiveModes();
+  for (const c of cols) {
+    const col = { name: c.name, modes: c.modes, variables: c.variables };
+    if (activeModes.length < allModes.length) {
+      col.variables = c.variables.map(v => {
+        const filtered = {};
+        for (const m of activeModes) { filtered[m] = v.valuesByMode[m]; }
+        return { ...v, valuesByMode: filtered };
+      });
+    }
+    result.collections.push(col);
+  }
+  return JSON.stringify(result, null, 2);
+}
+
+function formatVariablesCSS() {
+  const cols = getFilteredVariables();
+  let o = '/* Variables \u2014 CSS Custom Properties */\n\n';
+  const modes = getActiveModes();
+
+  for (const modeName of modes) {
+    const selector = modes.length === 1 ? ':root' : (modeName === allModes[0] ? ':root' : '[data-mode="' + toSlug(modeName) + '"]');
+    o += selector + ' {\n';
+    for (const c of cols) {
+      o += '  /* ' + c.name + ' */\n';
+      for (const v of c.variables) {
+        const val = v.valuesByMode[modeName];
+        if (!val) continue;
+        const slug = toSlug(c.name + '/' + v.name);
+        if (val.type === 'color') {
+          const a = val.a !== undefined ? val.a : 1;
+          o += '  --' + slug + ': ' + (a < 1 ? 'rgba(' + val.r + ',' + val.g + ',' + val.b + ',' + a.toFixed(2) + ')' : val.hex) + ';\n';
+        } else if (val.type === 'number') {
+          o += '  --' + slug + ': ' + val.value + ';\n';
+        } else if (val.type === 'string') {
+          o += '  --' + slug + ': ' + val.value + ';\n';
+        } else if (val.type === 'boolean') {
+          o += '  --' + slug + ': ' + (val.value ? '1' : '0') + ';\n';
+        } else if (val.type === 'alias') {
+          o += '  --' + slug + ': var(--' + toSlug(val.aliasName) + ');\n';
+        }
+      }
+      o += '\n';
+    }
+    o += '}\n\n';
+  }
+  return o;
+}
+
+function formatVariablesFlutter() {
+  const cols = getFilteredVariables();
+  const activeModes = getActiveModes();
+  let o = "// Variables \u2014 Flutter/Dart\n\nimport 'package:flutter/material.dart';\n\n";
+
+  for (const c of cols) {
+    const className = c.name.replace(/[^a-zA-Z0-9]/g, '');
+    o += 'abstract class DS' + className + ' {\n  DS' + className + '._();\n\n';
+
+    // If multiple modes selected, generate per mode
+    if (activeModes.length > 1) {
+      for (const mode of activeModes) {
+        o += '  // Mode: ' + mode + '\n';
+        for (const v of c.variables) {
+          const val = v.valuesByMode[mode];
+          if (!val) continue;
+          const name = toCamel(v.name) + mode.replace(/[^a-zA-Z0-9]/g, '');
+          if (val.type === 'color') o += '  static const ' + name + ' = ' + hexToFlutterColor(val.hex, val.a) + ';\n';
+          else if (val.type === 'number') o += '  static const ' + name + ' = ' + val.value + ';\n';
+          else if (val.type === 'string') o += "  static const " + name + " = '" + val.value + "';\n";
+          else if (val.type === 'boolean') o += '  static const ' + name + ' = ' + val.value + ';\n';
+          else if (val.type === 'alias') o += '  // ' + toCamel(v.name) + ' \u2192 alias: ' + val.aliasName + '\n';
+        }
+        o += '\n';
+      }
+    } else {
+      const modeName = activeModes[0] || allModes[0];
+      for (const v of c.variables) {
+        const val = v.valuesByMode[modeName];
+        if (!val) continue;
+        const name = toCamel(v.name);
+        if (val.type === 'color') o += '  static const ' + name + ' = ' + hexToFlutterColor(val.hex, val.a) + ';\n';
+        else if (val.type === 'number') o += '  static const ' + name + ' = ' + val.value + ';\n';
+        else if (val.type === 'string') o += "  static const " + name + " = '" + val.value + "';\n";
+        else if (val.type === 'boolean') o += '  static const ' + name + ' = ' + val.value + ';\n';
+        else if (val.type === 'alias') o += '  // ' + name + ' \u2192 alias: ' + val.aliasName + '\n';
+      }
+    }
+    o += '}\n\n';
+  }
+  return o;
+}
+
+function formatVariablesDTCG() {
+  const cols = getFilteredVariables();
+  const activeModes = getActiveModes();
+  const t = {};
+
+  for (const c of cols) {
+    t[c.name] = {};
+    if (activeModes.length > 1) {
+      // Multi-mode: nest by mode
+      for (const mode of activeModes) {
+        t[c.name][mode] = {};
+        for (const v of c.variables) {
+          const val = v.valuesByMode[mode];
+          if (!val) continue;
+          const token = {};
+          if (val.type === 'color') { token.$type = 'color'; token.$value = val.hex + alphaToHex(val.a); }
+          else if (val.type === 'number') { token.$type = 'number'; token.$value = val.value; }
+          else if (val.type === 'string') { token.$type = 'string'; token.$value = val.value; }
+          else if (val.type === 'boolean') { token.$type = 'boolean'; token.$value = val.value; }
+          else if (val.type === 'alias') { token.$type = 'alias'; token.$value = '{' + val.aliasName + '}'; }
+          setNested(t[c.name][mode], v.name, token);
+        }
+      }
+    } else {
+      const modeName = activeModes[0] || allModes[0];
+      for (const v of c.variables) {
+        const val = v.valuesByMode[modeName];
+        if (!val) continue;
+        const token = {};
+        if (val.type === 'color') { token.$type = 'color'; token.$value = val.hex + alphaToHex(val.a); }
+        else if (val.type === 'number') { token.$type = 'number'; token.$value = val.value; }
+        else if (val.type === 'string') { token.$type = 'string'; token.$value = val.value; }
+        else if (val.type === 'boolean') { token.$type = 'boolean'; token.$value = val.value; }
+        else if (val.type === 'alias') { token.$type = 'alias'; token.$value = '{' + val.aliasName + '}'; }
+        setNested(t[c.name], v.name, token);
+      }
+    }
+  }
+  return JSON.stringify(t, null, 2);
+}
+
+// ═══════════════════════════════════════
+// OUTPUT LOGIC
+// ═══════════════════════════════════════
+
+function getFormattedOutput() {
+  if (currentSection === 'styles') {
+    if (!stylesData) return '';
+    const filtered = getFilteredStyles();
+    if (currentFormat === 'css') return formatStylesCSS(filtered);
+    if (currentFormat === 'flutter') return formatStylesFlutter(filtered);
+    if (currentFormat === 'dtcg') return formatStylesDTCG(filtered);
+    return JSON.stringify(filtered, null, 2);
+  } else {
+    if (!variablesData) return '';
+    if (currentFormat === 'css') return formatVariablesCSS();
+    if (currentFormat === 'flutter') return formatVariablesFlutter();
+    if (currentFormat === 'dtcg') return formatVariablesDTCG();
+    return formatVariablesFigma();
+  }
+}
+
+function getFileInfo() {
+  const prefix = currentSection === 'styles' ? 'ds-styles' : 'ds-variables';
+  if (currentFormat === 'css') return { ext: '.css', mime: 'text/css', label: 'CSS Custom Properties', prefix };
+  if (currentFormat === 'flutter') return { ext: '.dart', mime: 'text/plain', label: 'Flutter/Dart', prefix };
+  if (currentFormat === 'dtcg') return { ext: '.tokens.json', mime: 'application/json', label: 'W3C DTCG Tokens', prefix };
+  return { ext: '.json', mime: 'application/json', label: 'Figma JSON', prefix };
+}
+
+function updateOutput() {
+  document.getElementById('output').value = getFormattedOutput();
+  const info = getFileInfo();
+  document.getElementById('file-hint').textContent = info.label + '  \u2022  ' + info.prefix + info.ext;
+}
+
+// ═══════════════════════════════════════
+// UI UPDATERS
+// ═══════════════════════════════════════
+
+function updateStyleStats() {
+  if (!stylesData) return;
+  const filtered = getFilteredStyles();
+  const b = {
+    paint: filtered.paintStyles.length,
+    text: filtered.textStyles.length,
+    effect: filtered.effectStyles.length,
+    grid: filtered.gridStyles.length,
+  };
+  updateStatEl('paint', b.paint);
+  updateStatEl('text', b.text);
+  updateStatEl('effect', b.effect);
+  updateStatEl('grid', b.grid);
+  prevStylesBreakdown = { ...b };
+}
+
+function updateStatEl(type, newVal) {
+  const el = document.getElementById('count-' + type);
+  const statEl = document.getElementById('stat-' + type);
+  const diffEl = document.getElementById('diff-' + type);
+  if (!el) return;
+  const oldVal = prevStylesBreakdown ? prevStylesBreakdown[type] : null;
+  el.textContent = newVal;
+  if (oldVal !== null && oldVal !== newVal) {
+    const diff = newVal - oldVal;
+    diffEl.textContent = (diff > 0 ? '+' : '') + diff;
+    diffEl.className = 'stat-diff visible' + (diff < 0 ? ' negative' : '');
+    statEl.classList.add('changed');
+    setTimeout(() => { diffEl.classList.remove('visible'); statEl.classList.remove('changed'); }, 3000);
+  }
+}
+
+function buildCollectionsList() {
+  const list = document.getElementById('collections-list');
+  if (!variablesData || !variablesData._meta.available || !variablesData.collections.length) {
+    list.innerHTML = '<div class="empty-state"><div class="empty-icon">&#x1f4e6;</div><p>No variable collections found in this file.</p></div>';
+    return;
+  }
+
+  // Collect all unique modes
+  const modeSet = new Map();
+  for (const c of variablesData.collections) {
+    for (const m of c.modes) { modeSet.set(m.name, m.id); }
+  }
+  allModes = [...modeSet.keys()];
+
+  // Build collection checkboxes
+  list.innerHTML = '';
+  for (const c of variablesData.collections) {
+    selectedCollections.add(c.id);
+    const div = document.createElement('div');
+    div.className = 'collection-item';
+    const modeNames = c.modes.map(m => m.name).join(', ');
+    const typeCount = {};
+    for (const v of c.variables) { typeCount[v.resolvedType] = (typeCount[v.resolvedType] || 0) + 1; }
+    const typeStr = Object.entries(typeCount).map(([k, v]) => v + ' ' + k.toLowerCase()).join(' \u2022 ');
+
+    div.innerHTML = '<input type="checkbox" checked data-col-id="' + c.id + '">' +
+      '<div class="collection-info">' +
+      '<div class="collection-name">' + c.name + '</div>' +
+      '<div class="collection-meta"><span>' + c.variableCount + ' vars</span><span>' + c.modes.length + ' mode' + (c.modes.length > 1 ? 's' : '') + ': ' + modeNames + '</span></div>' +
+      '</div>';
+    list.appendChild(div);
+  }
+
+  // Build mode chips
+  buildModeChips();
+  updateVariableStats();
+}
+
+function buildModeChips() {
+  const container = document.getElementById('mode-selector');
+  container.innerHTML = '';
+  if (allModes.length <= 1) { selectedModes = new Set(allModes); return; }
+
+  // "All" toggle chip
+  const allChip = document.createElement('button');
+  allChip.type = 'button';
+  allChip.className = 'mode-chip active';
+  allChip.dataset.mode = '__all__';
+  allChip.textContent = 'All modes';
+  container.appendChild(allChip);
+
+  for (const mode of allModes) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'mode-chip active';
+    chip.dataset.mode = mode;
+    chip.textContent = mode;
+    container.appendChild(chip);
+  }
+  selectedModes = new Set(allModes);
+}
+
+function updateVariableStats() {
+  const container = document.getElementById('stats-variables');
+  const cols = getFilteredVariables();
+  let total = 0; let colors = 0; let numbers = 0; let strings = 0; let booleans = 0;
+  for (const c of cols) {
+    for (const v of c.variables) {
+      total++;
+      if (v.resolvedType === 'COLOR') colors++;
+      else if (v.resolvedType === 'FLOAT') numbers++;
+      else if (v.resolvedType === 'STRING') strings++;
+      else if (v.resolvedType === 'BOOLEAN') booleans++;
+    }
+  }
+  container.innerHTML = '';
+  const items = [['Color', colors], ['Number', numbers], ['String', strings], ['Boolean', booleans]];
+  for (const [label, count] of items) {
+    if (count > 0) {
+      container.innerHTML += '<div class="stat"><div class="stat-number">' + count + '</div><div class="stat-label">' + label + '</div></div>';
+    }
+  }
+}
+
+function setSyncState(state) {
+  const badge = document.getElementById('sync-badge');
+  const label = document.getElementById('sync-label');
+  const btn = document.getElementById('btn-sync');
+  const btnText = document.getElementById('sync-text');
+  badge.className = 'sync-badge ' + state;
+  btn.className = 'btn btn-sync' + (state === 'syncing' ? ' syncing' : '');
+  label.textContent = state === 'syncing' ? 'Syncing...' : 'Synced';
+  btnText.textContent = state === 'syncing' ? 'Syncing...' : 'Sync';
+}
+
+function updateTimestamp() {
+  if (!lastSyncTime) return;
+  const el = document.getElementById('last-updated');
+  const d = Math.floor((new Date() - lastSyncTime) / 1000);
+  if (d < 5) el.textContent = 'Just now';
+  else if (d < 60) el.textContent = d + 's ago';
+  else if (d < 3600) el.textContent = Math.floor(d / 60) + 'm ago';
+  else el.textContent = lastSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function startTimer() { if (timerInterval) clearInterval(timerInterval); timerInterval = setInterval(updateTimestamp, 5000); }
+
+// ═══════════════════════════════════════
+// RECEIVE DATA FROM PLUGIN
+// ═══════════════════════════════════════
+
+window.onmessage = (event) => {
+  const msg = event.data.pluginMessage;
+  if (msg.type === 'all-data') {
+    stylesData = msg.payload.styles;
+    variablesData = msg.payload.variables;
+    syncCount++;
+    lastSyncTime = new Date();
+
+    const fileName = stylesData._meta.fileName;
+    document.getElementById('subtitle').textContent = fileName;
+    document.getElementById('badge-styles').textContent = stylesData._meta.totalStyles;
+    document.getElementById('badge-variables').textContent = variablesData._meta.totalVariables || 0;
+
+    buildStyleGroupsList();
+    updateStyleStats();
+    buildCollectionsList();
+    updateOutput();
+
+    document.getElementById('btn-copy').disabled = false;
+    document.getElementById('btn-download').disabled = false;
+    document.getElementById('btn-docs').disabled = false;
+    document.getElementById('btn-var-docs').disabled = false;
+
+    setSyncState('synced');
+    updateTimestamp();
+    startTimer();
+
+    if (syncCount > 1) showToast('Synced \u2014 ' + stylesData._meta.totalStyles + ' styles, ' + (variablesData._meta.totalVariables || 0) + ' variables');
+  }
+
+  if (msg.type === 'doc-progress') {
+    if (msg.isVariable) {
+      // Variable documentation progress
+      const vBtn = document.getElementById('btn-var-docs');
+      if (msg.status === 'starting') {
+        vBtn.className = 'btn-docs generating';
+        vBtn.textContent = 'Generating variables...';
+        showToast('Generating variable documentation...');
+      } else if (msg.status === 'generating') {
+        vBtn.textContent = 'Group ' + msg.current + '/' + msg.total + ': ' + msg.name + '...';
+      } else if (msg.status === 'done') {
+        vBtn.className = 'btn-docs';
+        vBtn.disabled = false;
+        vBtn.textContent = '\u25B8 Generate Variables Documentation';
+        showToast('Done \u2014 ' + (msg.varCount || 0) + ' variables in ' + msg.pageCount + ' group' + (msg.pageCount > 1 ? 's' : ''));
+      }
+    } else {
+      // Style documentation progress
+      const btn = document.getElementById('btn-docs');
+      if (msg.status === 'starting') {
+        btn.className = 'btn-docs generating';
+        btn.textContent = 'Generating...';
+        showToast('Generating documentation...');
+      } else if (msg.status === 'generating') {
+        btn.textContent = 'Page ' + msg.current + '/' + msg.total + ': ' + msg.name + '...';
+      } else if (msg.status === 'done') {
+        btn.className = 'btn-docs';
+        btn.disabled = false;
+        btn.textContent = '\u25B8 Generate Documentation';
+        showToast('Done \u2014 ' + msg.pageCount + ' page' + (msg.pageCount > 1 ? 's' : '') + ' created');
+      }
+    }
+  }
+
+  if (msg.type === 'live-sync-status') {
+    isDocLive = msg.active;
+    document.getElementById('live-badge').classList.toggle('active', msg.active);
+    updateMiniBar();
+  }
+
+  if (msg.type === 'live-sync-update') {
+    if (isMinimized) {
+      var el = document.getElementById('mini-updated');
+      el.textContent = msg.count + ' updated';
+      setTimeout(function() { el.textContent = ''; }, 3000);
+    }
+    showToast(msg.count + ' style' + (msg.count > 1 ? 's' : '') + ' updated');
+  }
+};
+
+// ═══════════════════════════════════════
+// EVENT HANDLERS
+// ═══════════════════════════════════════
+
+// Main section toggle
+document.getElementById('main-tabs').onclick = (e) => {
+  const tab = e.target.closest('.main-tab');
+  if (!tab) return;
+  document.querySelectorAll('.main-tab').forEach(t => t.classList.remove('active'));
+  tab.classList.add('active');
+  currentSection = tab.dataset.section;
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById('section-' + currentSection).classList.add('active');
+  updateOutput();
+};
+
+// Format tabs
+document.getElementById('format-tabs').onclick = (e) => {
+  const tab = e.target.closest('.format-tab');
+  if (!tab) return;
+  document.querySelectorAll('.format-tab').forEach(t => t.classList.remove('active'));
+  tab.classList.add('active');
+  currentFormat = tab.dataset.format;
+  updateOutput();
+};
+
+// Collection checkboxes
+document.getElementById('collections-list').onchange = (e) => {
+  if (e.target.type === 'checkbox') {
+    const id = e.target.dataset.colId;
+    if (e.target.checked) selectedCollections.add(id);
+    else selectedCollections.delete(id);
+    updateVariableStats();
+    updateOutput();
+  }
+};
+
+// Select all / none
+document.getElementById('btn-select-all').onclick = () => {
+  document.querySelectorAll('#collections-list input[type="checkbox"]').forEach(cb => { cb.checked = true; selectedCollections.add(cb.dataset.colId); });
+  updateVariableStats();
+  updateOutput();
+};
+document.getElementById('btn-select-none').onclick = () => {
+  document.querySelectorAll('#collections-list input[type="checkbox"]').forEach(cb => { cb.checked = false; });
+  selectedCollections.clear();
+  updateVariableStats();
+  updateOutput();
+};
+
+// Style groups: accordion toggle
+document.getElementById('sg-toggle').onclick = (e) => {
+  if (e.target.closest('button')) return;
+  sgOpen = !sgOpen;
+  document.getElementById('sg-arrow').classList.toggle('open', sgOpen);
+  document.getElementById('sg-body').classList.toggle('open', sgOpen);
+};
+
+// Style groups: chip removal (× button)
+document.getElementById('sg-chips').onclick = (e) => {
+  const x = e.target.closest('.sg-chip-x');
+  if (!x) return;
+  const group = x.dataset.group;
+  selectedStyleGroups.delete(group);
+  const cb = document.querySelector('#style-groups-list input[data-style-group="' + CSS.escape(group) + '"]');
+  if (cb) cb.checked = false;
+  updateStyleGroupChips();
+  updateStyleStats();
+  updateOutput();
+};
+
+// Style groups: checkbox changes
+document.getElementById('style-groups-list').onchange = (e) => {
+  if (e.target.type === 'checkbox') {
+    const group = e.target.dataset.styleGroup;
+    if (e.target.checked) selectedStyleGroups.add(group);
+    else selectedStyleGroups.delete(group);
+    updateStyleGroupChips();
+    updateStyleStats();
+    updateOutput();
+  }
+};
+
+// Style groups: All / None
+document.getElementById('btn-sg-all').onclick = (e) => {
+  e.stopPropagation();
+  document.querySelectorAll('#style-groups-list input[type="checkbox"]').forEach(cb => { cb.checked = true; selectedStyleGroups.add(cb.dataset.styleGroup); });
+  updateStyleGroupChips();
+  updateStyleStats();
+  updateOutput();
+};
+document.getElementById('btn-sg-none').onclick = (e) => {
+  e.stopPropagation();
+  document.querySelectorAll('#style-groups-list input[type="checkbox"]').forEach(cb => { cb.checked = false; });
+  selectedStyleGroups.clear();
+  updateStyleGroupChips();
+  updateStyleStats();
+  updateOutput();
+};
+
+// Mode chips (multi-select)
+document.getElementById('mode-selector').onclick = (e) => {
+  const chip = e.target.closest('.mode-chip');
+  if (!chip) return;
+  const mode = chip.dataset.mode;
+
+  if (mode === '__all__') {
+    // "All" chip: select all modes
+    selectedModes = new Set(allModes);
+  } else {
+    // Toggle individual mode
+    if (selectedModes.has(mode)) {
+      if (selectedModes.size > 1) selectedModes.delete(mode);
+    } else {
+      selectedModes.add(mode);
+    }
+  }
+
+  // Update chip visuals
+  document.querySelectorAll('.mode-chip').forEach(c => {
+    if (c.dataset.mode === '__all__') {
+      c.classList.toggle('active', selectedModes.size === allModes.length);
+    } else {
+      c.classList.toggle('active', selectedModes.has(c.dataset.mode));
+    }
+  });
+
+  updateOutput();
+};
+
+// Generate Documentation
+document.getElementById('btn-docs').onclick = () => {
+  if (!stylesData || selectedStyleGroups.size === 0) return;
+
+  const groups = [];
+  for (const groupName of selectedStyleGroups) {
+    groups.push({
+      groupName: groupName,
+      styles: {
+        paintStyles: stylesData.paintStyles.filter(s => getStyleGroup(s.name) === groupName),
+        textStyles: stylesData.textStyles.filter(s => getStyleGroup(s.name) === groupName),
+        effectStyles: stylesData.effectStyles.filter(s => getStyleGroup(s.name) === groupName),
+        gridStyles: stylesData.gridStyles.filter(s => getStyleGroup(s.name) === groupName),
+      }
+    });
+  }
+
+  document.getElementById('btn-docs').disabled = true;
+  parent.postMessage({ pluginMessage: { type: 'generate-docs', payload: { groups: groups } } }, '*');
+};
+
+// ═══════════════════════════════════════
+// VARIABLE GROUPS MODAL (tree with nested sub-groups)
+// ═══════════════════════════════════════
+
+let _varModalTree = [];
+let _varModalCollection = null;
+
+function openVarModal(collection) {
+  _varModalCollection = collection;
+  _varModalTree = [];
+
+  // Build tree: top group → sub-groups
+  const topMap = {};
+  const topOrder = [];
+
+  for (const v of collection.variables) {
+    const parts = v.name.split('/');
+    const topName = parts.length > 1 ? parts[0] : 'General';
+
+    if (!topMap[topName]) {
+      topMap[topName] = { variables: [], subMap: {}, subOrder: [] };
+      topOrder.push(topName);
+    }
+    topMap[topName].variables.push(v);
+
+    // Sub-group by second path segment (only if 3+ segments)
+    if (parts.length > 2) {
+      const subName = parts[1];
+      if (!topMap[topName].subMap[subName]) {
+        topMap[topName].subMap[subName] = [];
+        topMap[topName].subOrder.push(subName);
+      }
+      topMap[topName].subMap[subName].push(v);
+    }
+  }
+
+  topOrder.sort();
+
+  for (const name of topOrder) {
+    const data = topMap[name];
+    data.subOrder.sort();
+
+    const subGroups = data.subOrder.map(sn => ({
+      name: sn,
+      count: data.subMap[sn].length,
+      checked: true,
+      variables: data.subMap[sn]
+    }));
+
+    _varModalTree.push({
+      name: name,
+      count: data.variables.length,
+      hasSubGroups: subGroups.length > 1,
+      expanded: false,
+      checked: true,
+      subGroups: subGroups,
+      variables: data.variables
+    });
+  }
+
+  renderVarModal();
+  document.getElementById('var-modal-sub').textContent =
+    collection.name + ' collection \u00B7 ' + collection.variables.length + ' variables';
+  updateVarModalCount();
+  document.getElementById('var-modal-overlay').classList.add('open');
+}
+
+function closeVarModal() {
+  document.getElementById('var-modal-overlay').classList.remove('open');
+}
+
+function renderVarModal() {
+  const body = document.getElementById('var-modal-body');
+  body.innerHTML = '';
+
+  for (let i = 0; i < _varModalTree.length; i++) {
+    const group = _varModalTree[i];
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'var-modal-group';
+
+    // ── Parent row ──
+    const parentRow = document.createElement('div');
+    parentRow.className = 'var-modal-item parent';
+
+    // Expand arrow
+    const expandEl = document.createElement('span');
+    expandEl.className = 'var-expand' + (group.hasSubGroups ? '' : ' hidden');
+    expandEl.innerHTML = '&#x25B8;';
+    expandEl.dataset.idx = i;
+    parentRow.appendChild(expandEl);
+
+    // Checkbox
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = group.checked;
+    cb.dataset.parentIdx = i;
+    parentRow.appendChild(cb);
+
+    // Name
+    const nameEl = document.createElement('span');
+    nameEl.className = 'var-modal-item-name';
+    nameEl.textContent = group.name;
+    parentRow.appendChild(nameEl);
+
+    // Sub-groups badge
+    if (group.hasSubGroups) {
+      const subBadge = document.createElement('span');
+      subBadge.className = 'var-modal-item-sub';
+      subBadge.textContent = group.subGroups.length + ' sub-groups';
+      parentRow.appendChild(subBadge);
+    }
+
+    // Count
+    const countEl = document.createElement('span');
+    countEl.className = 'var-modal-item-count';
+    countEl.textContent = group.count;
+    parentRow.appendChild(countEl);
+
+    wrapper.appendChild(parentRow);
+
+    // ── Children (sub-groups) ──
+    if (group.hasSubGroups) {
+      const childrenEl = document.createElement('div');
+      childrenEl.className = 'var-modal-children';
+      childrenEl.dataset.parentIdx = i;
+
+      for (let j = 0; j < group.subGroups.length; j++) {
+        const sub = group.subGroups[j];
+
+        const childRow = document.createElement('div');
+        childRow.className = 'var-modal-item child';
+
+        const childCb = document.createElement('input');
+        childCb.type = 'checkbox';
+        childCb.checked = sub.checked;
+        childCb.dataset.parentIdx = i;
+        childCb.dataset.subIdx = j;
+
+        const childName = document.createElement('span');
+        childName.className = 'var-modal-item-name';
+        childName.textContent = sub.name;
+
+        const childCount = document.createElement('span');
+        childCount.className = 'var-modal-item-count';
+        childCount.textContent = sub.count;
+
+        childRow.appendChild(childCb);
+        childRow.appendChild(childName);
+        childRow.appendChild(childCount);
+        childrenEl.appendChild(childRow);
+      }
+
+      wrapper.appendChild(childrenEl);
+    }
+
+    body.appendChild(wrapper);
+  }
+}
+
+function updateVarModalCount() {
+  let checkedCount = 0;
+  let selVars = 0;
+  let totalItems = 0;
+
+  for (const group of _varModalTree) {
+    if (group.hasSubGroups) {
+      for (const sub of group.subGroups) {
+        totalItems++;
+        if (sub.checked) { checkedCount++; selVars += sub.count; }
+      }
+    } else {
+      totalItems++;
+      if (group.checked) { checkedCount++; selVars += group.count; }
+    }
+  }
+
+  document.getElementById('var-modal-count').textContent =
+    checkedCount + ' / ' + totalItems + ' \u00B7 ' + selVars + ' vars';
+}
+
+function syncParentCheckbox(parentIdx) {
+  const group = _varModalTree[parentIdx];
+  if (!group.hasSubGroups) return;
+
+  const allChecked = group.subGroups.every(s => s.checked);
+  const someChecked = group.subGroups.some(s => s.checked);
+
+  group.checked = allChecked;
+
+  const parentCb = document.querySelector(
+    'input[data-parent-idx="' + parentIdx + '"]:not([data-sub-idx])'
+  );
+  if (parentCb) {
+    parentCb.checked = allChecked;
+    parentCb.indeterminate = !allChecked && someChecked;
+  }
+}
+
+// ── Event delegation: expand arrows ──
+document.getElementById('var-modal-body').onclick = (e) => {
+  const expandEl = e.target.closest('.var-expand:not(.hidden)');
+  if (!expandEl) return;
+
+  e.preventDefault();
+  const idx = parseInt(expandEl.dataset.idx);
+  const group = _varModalTree[idx];
+  group.expanded = !group.expanded;
+  expandEl.classList.toggle('open', group.expanded);
+
+  const childrenEl = document.querySelector(
+    '.var-modal-children[data-parent-idx="' + idx + '"]'
+  );
+  if (childrenEl) childrenEl.classList.toggle('open', group.expanded);
+};
+
+// ── Event delegation: checkboxes ──
+document.getElementById('var-modal-body').onchange = (e) => {
+  if (e.target.type !== 'checkbox') return;
+
+  const parentIdx = parseInt(e.target.dataset.parentIdx);
+  const subIdx = e.target.dataset.subIdx;
+
+  if (subIdx !== undefined) {
+    // Child checkbox
+    _varModalTree[parentIdx].subGroups[parseInt(subIdx)].checked = e.target.checked;
+    syncParentCheckbox(parentIdx);
+  } else {
+    // Parent checkbox
+    const group = _varModalTree[parentIdx];
+    group.checked = e.target.checked;
+    e.target.indeterminate = false;
+
+    if (group.hasSubGroups) {
+      for (const sub of group.subGroups) sub.checked = e.target.checked;
+      // Sync children DOM
+      document.querySelectorAll(
+        'input[data-parent-idx="' + parentIdx + '"][data-sub-idx]'
+      ).forEach(cb => { cb.checked = e.target.checked; });
+    }
+  }
+
+  updateVarModalCount();
+};
+
+// ── All / None ──
+document.getElementById('var-modal-all').onclick = () => {
+  for (const group of _varModalTree) {
+    group.checked = true;
+    for (const sub of group.subGroups) sub.checked = true;
+  }
+  document.querySelectorAll('#var-modal-body input[type="checkbox"]').forEach(cb => {
+    cb.checked = true; cb.indeterminate = false;
+  });
+  updateVarModalCount();
+};
+document.getElementById('var-modal-none').onclick = () => {
+  for (const group of _varModalTree) {
+    group.checked = false;
+    for (const sub of group.subGroups) sub.checked = false;
+  }
+  document.querySelectorAll('#var-modal-body input[type="checkbox"]').forEach(cb => {
+    cb.checked = false; cb.indeterminate = false;
+  });
+  updateVarModalCount();
+};
+
+// ── Close / Cancel ──
+document.getElementById('var-modal-close').onclick = closeVarModal;
+document.getElementById('var-modal-cancel').onclick = closeVarModal;
+
+// ── Generate ──
+document.getElementById('var-modal-generate').onclick = () => {
+  const selectedGroups = [];
+
+  for (const group of _varModalTree) {
+    if (group.hasSubGroups) {
+      // Each checked sub-group → separate frame
+      for (const sub of group.subGroups) {
+        if (sub.checked) {
+          selectedGroups.push({
+            groupName: group.name + ' / ' + sub.name,
+            depth: 2,
+            variables: sub.variables
+          });
+        }
+      }
+    } else {
+      // Flat group → one frame
+      if (group.checked) {
+        selectedGroups.push({
+          groupName: group.name,
+          depth: 1,
+          variables: group.variables
+        });
+      }
+    }
+  }
+
+  if (selectedGroups.length === 0) {
+    showToast('Select at least one group.');
+    return;
+  }
+
+  closeVarModal();
+  document.getElementById('btn-var-docs').disabled = true;
+
+  parent.postMessage({
+    pluginMessage: {
+      type: 'generate-var-docs',
+      payload: {
+        collectionName: _varModalCollection.name,
+        modes: _varModalCollection.modes,
+        groups: selectedGroups
+      }
+    }
+  }, '*');
+};
+
+// ── Button: opens modal (Components only) ──
+document.getElementById('btn-var-docs').onclick = () => {
+  if (!variablesData || !variablesData.collections || !variablesData.collections.length) return;
+
+  // Find components collection
+  var compCol = null;
+  for (var i = 0; i < variablesData.collections.length; i++) {
+    if (variablesData.collections[i].name.toLowerCase() === 'components') {
+      compCol = variablesData.collections[i];
+      break;
+    }
+  }
+
+  if (!compCol) {
+    showToast('No "Components" collection found in this file.');
+    return;
+  }
+
+  if (!selectedCollections.has(compCol.id)) {
+    showToast('Select the Components collection to generate documentation.');
+    return;
+  }
+
+  var otherSelected = false;
+  for (var c of variablesData.collections) {
+    if (c.id !== compCol.id && selectedCollections.has(c.id)) {
+      otherSelected = true;
+      break;
+    }
+  }
+  if (otherSelected) {
+    showToast('Only Components collection is supported for now. Deselect other collections.');
+    return;
+  }
+
+  openVarModal(compCol);
+};
+
+// Sync
+document.getElementById('btn-sync').onclick = () => {
+  setSyncState('syncing');
+  parent.postMessage({ pluginMessage: { type: 'sync' } }, '*');
+};
+
+// Copy
+document.getElementById('btn-copy').onclick = () => {
+  const text = getFormattedOutput();
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('Copied ' + getFileInfo().label);
+  }).catch(() => {
+    document.getElementById('output').select();
+    document.execCommand('copy');
+    showToast('Copied ' + getFileInfo().label);
+  });
+};
+
+// Download
+document.getElementById('btn-download').onclick = () => {
+  const text = getFormattedOutput();
+  const info = getFileInfo();
+  const blob = new Blob([text], { type: info.mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const ts = new Date().toISOString().slice(0, 10);
+  a.download = info.prefix + '-' + ts + info.ext;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Downloaded ' + info.prefix + '-' + ts + info.ext);
+};
+
+// Close
+document.getElementById('btn-close').onclick = () => {
+  parent.postMessage({ pluginMessage: { type: 'close' } }, '*');
+};
+
+function showToast(text) {
+  const toast = document.getElementById('toast');
+  toast.textContent = text;
+  toast.classList.add('visible');
+  setTimeout(() => toast.classList.remove('visible'), 2000);
+}
+
+// ═══════════════════════════════════════
+// MINI MODE + LIVE SYNC
+// ═══════════════════════════════════════
+
+let isMinimized = false;
+let isDocLive = false;
+
+document.getElementById('btn-minimize').onclick = () => {
+  isMinimized = true;
+  document.body.classList.add('minimized');
+  updateMiniBar();
+  parent.postMessage({ pluginMessage: { type: 'resize-ui', width: 280, height: 44 } }, '*');
+};
+
+document.getElementById('btn-expand').onclick = () => {
+  isMinimized = false;
+  document.body.classList.remove('minimized');
+  parent.postMessage({ pluginMessage: { type: 'resize-ui', width: 640, height: 760 } }, '*');
+};
+
+function updateMiniBar() {
+  const dot = document.getElementById('mini-dot');
+  const label = document.getElementById('mini-label');
+  if (isDocLive) {
+    dot.classList.remove('inactive');
+    label.textContent = 'Doc live';
+  } else {
+    dot.classList.add('inactive');
+    label.textContent = 'No doc';
+  }
+}
+</script>
+</body>
+</html>
