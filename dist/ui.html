@@ -1057,7 +1057,7 @@ function _flutterEffectStyles(data) {
 
 function formatStylesFlutter(data) {
   var cls = getFlutterClassName();
-  var o = "// Styles \u2014 Flutter/Dart\n// " + data._meta.fileName + "\n\nimport 'package:flutter/material.dart';\n\n";
+  var o = "import 'package:flutter/material.dart';\n\n";
 
   // Detect if text styles have multi-mode bound variables
   var modeNames = null;
@@ -1256,7 +1256,7 @@ function _flutterVarLine(name, val) {
 function formatVariablesFlutter() {
   const cols = getFilteredVariables();
   const activeModes = getActiveModes();
-  let o = "// Variables \u2014 Flutter/Dart\n\nimport 'package:flutter/material.dart';\n\n";
+  let o = "import 'package:flutter/material.dart';\n\n";
 
   var baseCls = getFlutterClassName();
   for (const c of cols) {
