@@ -1,11 +1,19 @@
 {
-  "name": "DS Styles Extractor V.1.2.0",
+  "name": "DS Styles Extractor V.1.8.1",
   "id": "ds-styles-extractor-ajbell",
   "api": "1.0.0",
   "main": "code.js",
   "ui": "ui.html",
-  "editorType": ["figma"],
+  "editorType": [
+    "figma"
+  ],
+  "permissions": [
+    "teamlibrary"
+  ],
   "networkAccess": {
-    "allowedDomains": ["https://api.bitbucket.org"]
+    "allowedDomains": [
+      "https://api.bitbucket.org",
+      "https://api.figma.com"
+    ]
   }
 }

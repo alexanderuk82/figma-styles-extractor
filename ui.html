@@ -87,7 +87,7 @@ button.btn:hover{opacity:.85}
 button.btn:disabled{opacity:.4;cursor:not-allowed}
 .btn-sync{background:#1a1a1a;color:#fff}
 .btn-sync:hover:not(:disabled){background:#333}
-.btn-sync.syncing{background:#b57a00;pointer-events:none}
+.btn-sync.syncing{pointer-events:none;opacity:.7}
 .btn-sync svg{width:13px;height:13px}
 .btn-sync.syncing svg{animation:spin .6s linear infinite}
 @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
@@ -103,6 +103,20 @@ button.btn:disabled{opacity:.4;cursor:not-allowed}
 #output{width:100%;height:calc(100vh - 400px);min-height:120px;border-radius:10px;overflow:auto;background:#1e1e2e;border:1px solid rgba(255,255,255,.08);position:relative}
 #output pre{margin:0;padding:14px 16px;counter-reset:line}
 #output code{font-family:'SF Mono','Fira Code','Cascadia Code',monospace;font-size:11px;line-height:1.65;color:#cdd6f4;display:block;white-space:pre;tab-size:2}
+/* Loading state for the output panel: a shimmering code skeleton + live status */
+#output.loading pre{display:none}
+#out-load{display:none;padding:18px 20px;font-family:'SF Mono','Fira Code',monospace}
+#output.loading #out-load{display:block}
+.ol-head{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.ol-head svg{width:18px;height:18px;stroke:#89b4fa;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;animation:ol-rot 1.5s linear infinite}
+@keyframes ol-rot{to{transform:rotate(360deg)}}
+.ol-title{color:#cdd6f4;font-size:13px;font-weight:600;font-family:Inter,system-ui,sans-serif}
+.ol-sub{color:#7f849c;font-size:12px;font-family:Inter,system-ui,sans-serif;margin:0 0 16px 28px;min-height:16px;transition:opacity .25s}
+.ol-sub.fade{opacity:0}
+.sk{height:10px;border-radius:4px;margin-bottom:10px;background:linear-gradient(90deg,rgba(205,214,244,.05) 25%,rgba(205,214,244,.14) 37%,rgba(205,214,244,.05) 63%);background-size:400% 100%;animation:sk-shimmer 1.6s ease infinite}
+@keyframes sk-shimmer{0%{background-position:100% 50%}100%{background-position:0 50%}}
+.sk.i1{margin-left:18px}.sk.i2{margin-left:36px}.sk.i3{margin-left:54px}
+.ol-note{color:#585b70;font-size:11px;font-family:Inter,system-ui,sans-serif;margin-top:14px;display:flex;align-items:center;gap:6px}
 /* Line numbers */
 .code-line{display:block}
 .code-line::before{counter-increment:line;content:counter(line);display:inline-block;width:32px;margin-right:14px;text-align:right;color:rgba(205,214,244,.2);font-size:10px;user-select:none;-webkit-user-select:none}
@@ -414,6 +428,127 @@ textarea.pub-input{resize:vertical;min-height:60px;font-family:'SF Mono','Fira C
 .btn-publish{background:#1E3A5F;color:#fff}
 .btn-publish:hover:not(:disabled){background:#2a4f7a}
 .btn-publish svg{width:13px;height:13px}
+
+/* ═══ Audit tab (v1.4.0) ═══ */
+body.audit-mode .format-tabs,body.audit-mode .actions,body.audit-mode #output,body.audit-mode .file-hint{display:none!important}
+.au{font-size:13px;line-height:1.45}
+.au svg.ic{width:14px;height:14px;flex:none;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.au-hdr{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;margin-bottom:10px}
+.au-title{font-size:16px;font-weight:700;margin:0}
+.au-meta{display:flex;flex-wrap:wrap;gap:6px 18px;color:var(--figma-color-text-secondary,#888);font-size:12px;margin:0 0 14px;padding-bottom:12px;border-bottom:1px solid var(--figma-color-border,#e2e2e2)}
+.au-meta span{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}.au-meta .fname{color:var(--figma-color-text,#1a1a1a);font-weight:600}
+.au-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:600;border:1px solid var(--figma-color-border,#e2e2e2);background:var(--figma-color-bg-secondary,#f6f6f6);white-space:nowrap;cursor:pointer;color:var(--figma-color-text,#1a1a1a)}
+.au-health{display:flex;align-items:baseline;gap:14px;margin-bottom:14px}
+.au-health-num{font-size:44px;font-weight:800;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.au-health-num.good{color:#157A44}.au-health-num.warn{color:#8a5a00}.au-health-num.bad{color:#c0361b}
+.figma-dark .au-health-num.good{color:#4fd48a}.figma-dark .au-health-num.warn{color:#f2b84b}.figma-dark .au-health-num.bad{color:#ff7a5c}
+.au-health-txt{display:flex;flex-direction:column;gap:2px}
+.au-health-txt b{font-size:13px}.au-health-txt span{font-size:11px;color:var(--figma-color-text-secondary,#888)}
+.au-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9998;align-items:center;justify-content:center;padding:24px}
+.au-modal-overlay.show{display:flex}
+.au-modal{background:var(--figma-color-bg,#fff);border:1px solid var(--figma-color-border,#e2e2e2);border-radius:12px;width:100%;max-width:620px;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.35)}
+.au-modal-head{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start;padding:16px 18px;border-bottom:1px solid var(--figma-color-border,#e2e2e2)}
+.au-modal-head h3{margin:0;font-size:14px}
+.au-modal-note{font-size:12px;color:var(--figma-color-text-secondary,#888);margin-top:4px;line-height:1.45}
+.au-modal-body{overflow-y:auto;padding:6px 18px 12px}
+.au-modal-row{display:grid;grid-template-columns:24px 1fr;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--figma-color-border,#e2e2e2);font-size:13px}
+.au-modal-row:first-child{border-top:0}.au-modal-why{font-size:11px;color:var(--figma-color-text-secondary,#888);margin-top:3px;line-height:1.4}
+.au-modal-row .n{color:var(--figma-color-text-secondary,#888);font-size:11px;text-align:right}
+.au-modal-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 18px;border-top:1px solid var(--figma-color-border,#e2e2e2)}
+.naming-bar{display:none;align-items:center;gap:14px;flex-wrap:wrap;padding:9px 12px;margin-bottom:10px;border:1px solid var(--figma-color-border,#e2e2e2);border-radius:9px;background:var(--figma-color-bg-secondary,#f6f6f6);font-size:12px}
+.naming-bar.show{display:flex}
+.nb-title{font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--figma-color-text-secondary,#888)}
+.nb-opt{display:inline-flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;color:var(--figma-color-text,#1a1a1a)}
+.nb-opt input[type=checkbox]{margin:0;cursor:pointer}
+.nb-prefix input{width:90px;padding:4px 7px;border:1px solid var(--figma-color-border,#ddd);border-radius:5px;background:var(--figma-color-bg,#fff);color:var(--figma-color-text,#1a1a1a);font-size:12px;font-family:inherit}
+.nb-more{border:1px solid var(--figma-color-border,#ddd);background:var(--figma-color-bg,#fff);color:var(--figma-color-text,#1a1a1a);border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+.nb-more.on{background:#7a1c29;color:#fff;border-color:#7a1c29}
+.naming-cols{display:none;margin:-6px 0 10px;padding:12px;border:1px solid var(--figma-color-border,#e2e2e2);border-radius:9px;background:var(--figma-color-bg-secondary,#f6f6f6)}
+.naming-cols.show{display:block}
+.nc-hint{font-size:11px;color:var(--figma-color-text-secondary,#888);margin-bottom:10px;line-height:1.45}
+.nc-row{display:grid;grid-template-columns:1fr 150px 1fr;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--figma-color-border,#e2e2e2);font-size:12px}
+.nc-row:first-child{border-top:0}
+.nc-row .nc-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nc-row .nc-name small{color:var(--figma-color-text-secondary,#888)}
+.nc-row input{width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--figma-color-border,#ddd);border-radius:5px;background:var(--figma-color-bg,#fff);color:var(--figma-color-text,#1a1a1a);font-size:12px;font-family:inherit}
+.nc-row .nc-ex{font-family:'SF Mono','Fira Code',monospace;font-size:11px;color:#5B47E0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.figma-dark .nc-row .nc-ex{color:#b3a4ff}
+body.audit-mode .naming-cols{display:none!important}
+.nb-example{margin-left:auto;font-family:'SF Mono','Fira Code',monospace;font-size:11px;color:#5B47E0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46%}
+.figma-dark .nb-example{color:#b3a4ff}
+body.audit-mode .naming-bar{display:none!important}
+.au-legend{display:flex;align-items:flex-start;gap:6px;font-size:11px;color:var(--figma-color-text-secondary,#888);margin-top:10px;line-height:1.45}.au-legend svg.ic{margin-top:2px}.au-legend b{color:var(--figma-color-text,#1a1a1a)}
+.au-tip{cursor:help}
+#au-tooltip{position:fixed;z-index:9999;display:none;opacity:0;transition:opacity .12s;padding:9px 11px;border-radius:8px;background:var(--figma-color-bg-inverse,#15151a);color:var(--figma-color-text-oninverse,#fff);font:500 11px/1.45 Inter,system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.35);pointer-events:none;white-space:normal;text-align:left;box-sizing:border-box}
+.au-pill.ok{color:#177a45}.au-pill.warn{color:#8a5a00}.au-pill.bad{color:#c0361b}.au-pill.off{color:var(--figma-color-text-secondary,#888)}
+.figma-dark .au-pill.ok{color:#4fd48a}.figma-dark .au-pill.warn{color:#f2b84b}.figma-dark .au-pill.bad{color:#ff7a5c}
+.au-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--figma-color-border,#e2e2e2);background:var(--figma-color-bg,#fff);color:var(--figma-color-text,#1a1a1a);border-radius:7px;padding:6px 11px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
+.au-btn.primary{background:#7a1c29;color:#fff;border-color:#7a1c29}.au-btn:disabled{opacity:.5;cursor:default}
+.au-card{background:var(--figma-color-bg-secondary,#f6f6f6);border:1px solid var(--figma-color-border,#e2e2e2);border-radius:10px;padding:14px}
+.au-card h3,.au-sect h3{font-size:12px;margin:0 0 10px;text-transform:uppercase;letter-spacing:.06em;color:var(--figma-color-text-secondary,#888);font-weight:600}
+.au-grid2{display:grid;grid-template-columns:1.35fr 1fr;gap:12px;margin-bottom:12px}
+.au-bar{display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--figma-color-border,#e9e9e9);margin-bottom:12px}.au-bar span{display:block;height:100%}
+.au-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.au-tiles.t5{grid-template-columns:repeat(5,1fr)}
+.au-tile{background:var(--figma-color-bg,#fff);border:1px solid var(--figma-color-border,#e2e2e2);border-radius:8px;padding:8px 10px}
+.au-tile .k{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--figma-color-text-secondary,#888)}
+.au-dot{width:9px;height:9px;border-radius:50%;flex:none;display:inline-block}
+.au-tile .v{font-size:18px;font-weight:700;margin-top:2px}.au-tile .p{font-size:11px;color:var(--figma-color-text-secondary,#888)}
+.c-ok{background:#1e9e5a}.c-dep{background:#e0a800}.c-miss{background:#d63b1f}.c-inh{background:#7b5cd6}.c-comp{background:#A34F00}
+.au-pg{display:grid;grid-template-columns:1fr 90px 26px;gap:8px;align-items:center;font-size:12px;padding:5px 0;border-top:1px solid var(--figma-color-border,#e2e2e2)}
+.au-pg:first-of-type{border-top:0}.au-pg .n{display:flex;align-items:center;gap:6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.au-pg .pb{height:8px;border-radius:4px;background:var(--figma-color-border,#e9e9e9);overflow:hidden}.au-pg .pb span{display:block;height:100%;background:#d63b1f}.au-pg b{text-align:right}
+.au-sect{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:6px 0 8px}.au-sect h3{margin:0}
+.au-hint{font-size:11px;color:var(--figma-color-text-secondary,#888);white-space:nowrap}
+.au-chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+.au-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;border:1px solid var(--figma-color-border,#e2e2e2);font-size:12px;background:var(--figma-color-bg-secondary,#f6f6f6);cursor:pointer;color:var(--figma-color-text,#1a1a1a)}
+.au-chip .c{font-weight:700;font-size:11px;padding:1px 6px;border-radius:999px;background:var(--figma-color-border,#e9e9e9)}
+.au-chip.on{background:#7a1c29;color:#fff;border-color:#7a1c29}.au-chip.on .c{background:rgba(255,255,255,.25)}
+.au-tbl{background:var(--figma-color-bg-secondary,#f6f6f6);border:1px solid var(--figma-color-border,#e2e2e2);border-radius:10px;overflow:hidden;margin-bottom:12px}
+.au-tr{display:grid;grid-template-columns:104px 1.5fr 1.5fr 100px;gap:12px;align-items:center;padding:10px 14px;border-top:1px solid var(--figma-color-border,#e2e2e2)}
+.au-tr.th{border-top:0;background:var(--figma-color-border,#e9e9e9);font-size:11px;font-weight:600;color:var(--figma-color-text-secondary,#888);text-transform:uppercase;letter-spacing:.05em}
+.au-tr .au-btn{justify-self:end}.au-tr.row{cursor:pointer}
+.au-badge{display:inline-flex;align-items:center;font-size:10px;font-weight:700;letter-spacing:.04em;padding:3px 7px;border-radius:5px;text-transform:uppercase}
+.au-badge.miss{background:#d63b1f;color:#fff}.au-badge.dep{background:#e0a800;color:#111}.au-badge.inh{background:#7b5cd6;color:#fff}.au-badge.comp{background:#A34F00;color:#fff}
+.au-cell{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.au-cell .name{font-weight:600}.au-cell .sub{color:var(--figma-color-text-secondary,#888);font-size:11px}
+.au-cell .sub svg.ic{width:12px;height:12px;vertical-align:-2px;margin-right:4px}
+.au-cnt{color:var(--figma-color-text-secondary,#888);font-weight:400}
+.au-sub-rows{display:none;background:var(--figma-color-bg,#fff)}.au-tr.open+.au-sub-rows{display:block}
+.au-sub-rows .au-tr{padding:8px 14px}.au-sub-rows .au-tr .lbl{font-size:11px;color:var(--figma-color-text-secondary,#888)}
+.au-details summary{cursor:pointer;list-style:none;display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px 14px;font-weight:600}
+.au-details summary::-webkit-details-marker{display:none}.au-details .note{font-size:11px;color:var(--figma-color-text-secondary,#888);padding:0 14px 8px}
+.au-details[open] .chev{transform:rotate(90deg)}.au-details .chev{transition:transform .15s}
+.au-foot{display:flex;gap:8px;justify-content:flex-end}
+.au-start{text-align:center;padding:34px 20px}.au-start h2{font-size:16px;margin:12px 0 6px}.au-start p{color:var(--figma-color-text-secondary,#888);font-size:12px;margin:0 auto 18px;max-width:400px}
+.au-scope{display:inline-flex;border:1px solid var(--figma-color-border,#e2e2e2);border-radius:8px;overflow:hidden;margin-bottom:16px}
+.au-scope button{border:0;background:transparent;padding:7px 14px;font-size:12px;font-weight:600;color:var(--figma-color-text-secondary,#888);cursor:pointer;font-family:inherit}
+.au-scope button.on{background:var(--figma-color-bg-secondary,#f0f0f0);color:var(--figma-color-text,#1a1a1a)}
+.au-prog{padding:4px 0}.au-prog .track{height:8px;border-radius:4px;background:var(--figma-color-border,#e9e9e9);overflow:hidden;margin:12px 0 14px}.au-prog .fill{height:100%;background:#7a1c29;width:0;transition:width .25s}
+.au-prog .lbl{font-size:12px;color:var(--figma-color-text-secondary,#888)}
+.au-prog-head{display:grid;grid-template-columns:auto 1fr auto auto;gap:12px;align-items:center}.au-prog-head svg.ic{width:22px;height:22px;color:#7a1c29}
+.au-prog-title b{font-size:14px}.au-prog-pct{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+@keyframes au-rot{to{transform:rotate(360deg)}}.au-spin{animation:au-rot 1.1s linear infinite}
+.au-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.au-step{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--figma-color-text-secondary,#888);padding:7px 10px;border-radius:8px;border:1px solid var(--figma-color-border,#e2e2e2);background:var(--figma-color-bg,#fff)}
+.au-step .n{width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;background:var(--figma-color-border,#e9e9e9);color:var(--figma-color-text-secondary,#888);flex:none}
+.au-step.on{color:var(--figma-color-text,#1a1a1a);border-color:#7a1c29}.au-step.on .n{background:#7a1c29;color:#fff}
+.au-step.done{color:var(--figma-color-text,#1a1a1a)}.au-step.done .n{background:#1e9e5a;color:#fff}
+.au-prog-now{margin-top:12px;font-weight:600;color:var(--figma-color-text,#1a1a1a)!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.au-prog-tip{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--figma-color-text-secondary,#888);margin-top:6px}
+.au-tokcard{display:none;margin-bottom:12px}.au-tokcard.show{display:block}
+.au-tokcard label{display:block;font-size:11px;color:var(--figma-color-text-secondary,#888);margin:8px 0 4px}
+.au-tokcard input{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--figma-color-border,#ddd);border-radius:6px;font-size:12px;font-family:inherit;background:var(--figma-color-bg,#fff);color:var(--figma-color-text,#1a1a1a)}
+.au-tokcard .row{display:flex;gap:8px;margin-top:10px;justify-content:flex-end}
+.au-empty{text-align:center;padding:26px;color:var(--figma-color-text-secondary,#888);font-size:12px}
+.au-start .au-card{text-align:left;margin-bottom:12px}
+.au-warn{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;border-color:#e0a800!important}.au-warn svg.ic{color:#c98a00;width:18px;height:18px;margin-top:1px}
+.au-warn b{display:block;margin-bottom:2px}.au-warn div{font-size:12px;color:var(--figma-color-text-secondary,#888)}.au-warn b{color:var(--figma-color-text,#1a1a1a)}
+.au-last-head{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin-bottom:10px}
+.au-last-head h3{margin:0}.au-last-meta{font-size:12px;color:var(--figma-color-text-secondary,#888);margin-top:2px}
+.au-last-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.au-banner{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px 14px;border-radius:10px;border:1px solid var(--figma-color-border,#e2e2e2);background:var(--figma-color-bg-secondary,#f6f6f6);font-size:12px;margin-bottom:12px}
+.au-banner svg.ic{color:#7b5cd6;width:16px;height:16px}
 </style>
 </head>
 <body>
@@ -454,6 +589,10 @@ textarea.pub-input{resize:vertical;min-height:60px;font-family:'SF Mono','Fira C
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.756 12.7279C10.1368 12.7283 11.2568 13.848 11.2569 15.2289V20.0832C11.2569 21.4641 10.1368 22.5838 8.756 22.5841H3.90168C2.52061 22.5841 1.40076 21.4643 1.40076 20.0832V15.2289C1.40083 13.8478 2.52064 12.7279 3.90168 12.7279H8.756ZM20.0832 12.7279C21.4643 12.7279 22.5841 13.8478 22.5841 15.2289V20.0832C22.5841 21.4643 21.4643 22.5841 20.0832 22.5841H15.2289C13.848 22.5838 12.728 21.4641 12.728 20.0832V15.2289C12.728 13.848 13.8481 12.7282 15.2289 12.7279H20.0832ZM3.90168 14.4926C3.49526 14.4926 3.16553 14.8225 3.16546 15.2289V20.0832C3.16546 20.4897 3.4952 20.8194 3.90168 20.8194H8.756C9.16219 20.8191 9.49221 20.4895 9.49221 20.0832V15.2289C9.49214 14.8227 9.16214 14.493 8.756 14.4926H3.90168ZM15.2289 14.4926C14.8227 14.4929 14.4927 14.8226 14.4927 15.2289V20.0832C14.4927 20.4895 14.8226 20.8191 15.2289 20.8194H20.0832C20.4897 20.8194 20.8194 20.4897 20.8194 20.0832V15.2289C20.8193 14.8224 20.4896 14.4926 20.0832 14.4926H15.2289ZM8.756 1.39935C10.1367 1.39967 11.2567 2.51959 11.2569 3.90027V8.75459C11.2569 10.1355 10.1368 11.2552 8.756 11.2555H3.90168C2.5206 11.2555 1.40076 10.1357 1.40076 8.75459V3.90027C1.40099 2.51939 2.52074 1.39935 3.90168 1.39935H8.756ZM20.0832 1.39935C21.4642 1.39935 22.5839 2.5194 22.5841 3.90027V8.75459C22.5841 10.1357 21.4643 11.2555 20.0832 11.2555H15.2289C13.848 11.2552 12.728 10.1355 12.728 8.75459V3.90027C12.7282 2.51955 13.8482 1.39962 15.2289 1.39935H20.0832ZM3.90168 3.16406C3.49536 3.16406 3.16569 3.49401 3.16546 3.90027V8.75459C3.16546 9.16105 3.49522 9.4908 3.90168 9.4908H8.756C9.16218 9.49048 9.49221 9.16085 9.49221 8.75459V3.90027C9.49198 3.49421 9.16204 3.16438 8.756 3.16406H3.90168ZM15.2289 3.16406C14.8228 3.16433 14.4929 3.49417 14.4927 3.90027V8.75459C14.4927 9.16089 14.8227 9.49053 15.2289 9.4908H20.0832C20.4897 9.4908 20.8194 9.16106 20.8194 8.75459V3.90027C20.8192 3.494 20.4895 3.16406 20.0832 3.16406H15.2289Z" fill="currentColor"/></svg>
     Variables <span class="badge" id="badge-variables">0</span>
   </button>
+  <button class="main-tab" data-section="audit" type="button">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3.5V12c0 4.8-3.4 8.2-8 9-4.6-.8-8-4.2-8-9V6.5z"/><path d="M8.5 12l2.3 2.3L15.5 9.5"/></svg>
+    Audit <span class="badge" id="badge-audit">&mdash;</span>
+  </button>
 </div>
 
 <!-- ══════ STYLES SECTION ══════ -->
@@ -485,16 +624,23 @@ textarea.pub-input{resize:vertical;min-height:60px;font-family:'SF Mono','Fira C
 
 <!-- ══════ VARIABLES SECTION ══════ -->
 <div class="section" id="section-variables">
+  <!-- Token search -->
+  <div id="var-search-wrap" style="position:relative;margin-bottom:8px">
+    <input type="text" id="var-search" placeholder="Search tokens by name…  (e.g. skeleton)" autocomplete="off"
+      style="width:100%;box-sizing:border-box;padding:8px 30px 8px 12px;border-radius:8px;border:1px solid var(--figma-color-border,#444);background:var(--figma-color-bg-secondary,#2a2a2a);color:var(--figma-color-text,#fff);font-size:13px">
+    <button type="button" id="var-search-clear" title="Clear" style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);border:none;background:transparent;color:#8a8a8a;cursor:pointer;font-size:15px;line-height:1">&times;</button>
+    <div id="var-search-info" style="display:none;margin-top:5px;font-size:12px;color:#5B47E0;font-weight:600"></div>
+  </div>
   <!-- Collection picker -->
   <div class="collections-panel" id="collections-panel">
     <div class="collections-header">
-      <span>Collections</span>
+      <span id="collections-toggle" style="cursor:pointer;user-select:none;display:inline-flex;align-items:center;gap:6px"><span id="collections-chevron">&#x25BE;</span>Collections<span id="collections-summary" style="color:#8a8a8a;font-weight:400;font-size:11px"></span></span>
       <div>
         <button type="button" id="btn-select-all">All</button>
         <button type="button" id="btn-select-none">None</button>
       </div>
     </div>
-    <div id="collections-list"></div>
+    <div id="collections-list" style="max-height:300px;overflow-y:auto"></div>
   </div>
 
   <!-- Mode selector -->
@@ -506,7 +652,104 @@ textarea.pub-input{resize:vertical;min-height:60px;font-family:'SF Mono','Fira C
   <button class="btn-docs" id="btn-var-docs" type="button" disabled>&#x25B8; Generate Variables Documentation</button>
 </div>
 
+<!-- ══════ AUDIT SECTION (v1.4.0) ══════ -->
+<div class="section au" id="section-audit">
+  <svg style="display:none" xmlns="http://www.w3.org/2000/svg"><defs>
+    <symbol id="au-i-file" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></symbol>
+    <symbol id="au-i-comp" viewBox="0 0 24 24"><path d="M12 3l3.5 3.5L12 10 8.5 6.5z"/><path d="M17.5 8.5L21 12l-3.5 3.5L14 12z"/><path d="M6.5 8.5L10 12l-3.5 3.5L3 12z"/><path d="M12 14l3.5 3.5L12 21l-3.5-3.5z"/></symbol>
+    <symbol id="au-i-lib" viewBox="0 0 24 24"><path d="M4 19V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14"/><path d="M4 19a2 2 0 0 0 2 2h14"/><path d="M9 3v18"/></symbol>
+    <symbol id="au-i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3"/><path d="M15 8l3 3"/></symbol>
+    <symbol id="au-i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></symbol>
+    <symbol id="au-i-locate" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></symbol>
+    <symbol id="au-i-layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></symbol>
+    <symbol id="au-i-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+    <symbol id="au-i-csv" viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M4 10h16M4 15h16M10 4v16"/></symbol>
+    <symbol id="au-i-json" viewBox="0 0 24 24"><path d="M8 4c-2 0-3 1-3 3v3c0 1-1 2-2 2 1 0 2 1 2 2v3c0 2 1 3 3 3"/><path d="M16 4c2 0 3 1 3 3v3c0 1 1 2 2 2-1 0-2 1-2 2v3c0 2-1 3-3 3"/></symbol>
+    <symbol id="au-i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="au-i-doc" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></symbol>
+    <symbol id="au-i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
+    <symbol id="au-i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></symbol>
+    <symbol id="au-i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3.5V12c0 4.8-3.4 8.2-8 9-4.6-.8-8-4.2-8-9V6.5z"/><path d="M8.5 12l2.3 2.3L15.5 9.5"/></symbol>
+  </defs></svg>
+
+  <div class="au-hdr">
+    <h2 class="au-title">Audit</h2>
+    <span class="au-pill off" id="au-token-pill"><svg class="ic"><use href="#au-i-key"/></svg><span id="au-token-text">Token &middot; checking&hellip;</span></span>
+    <button class="au-btn primary" id="au-btn-scan" type="button"><svg class="ic"><use href="#au-i-refresh"/></svg><span id="au-btn-scan-text">Scan</span></button>
+  </div>
+
+  <div class="au-card au-tokcard" id="au-tokcard">
+    <h3>API token</h3>
+    <div style="font-size:12px;color:var(--figma-color-text-secondary,#888)">Used only to read which library components live in a Graveyard page. The plugin already ships with a shared token &mdash; paste one here only if Alex asks you to. Saved on this computer only.</div>
+    <label for="au-tok-input">Personal access token</label>
+    <input id="au-tok-input" type="password" placeholder="figd_&hellip;" autocomplete="off">
+    <label for="au-tok-exp">Expiry date (YYYY-MM-DD, optional)</label>
+    <input id="au-tok-exp" type="text" placeholder="2026-12-31" autocomplete="off">
+    <div class="row"><button class="au-btn" id="au-tok-clear" type="button">Remove override</button><button class="au-btn primary" id="au-tok-save" type="button">Save</button></div>
+  </div>
+
+  <div id="au-start" class="au-start">
+    <div id="au-last"></div>
+    <div id="au-warn"></div>
+    <svg class="ic" style="width:36px;height:36px;color:#7a1c29"><use href="#au-i-shield"/></svg>
+    <h2>Find broken and deprecated components</h2>
+    <p>Scans every instance in this file and flags the ones pointing to a Graveyard or @deprecated component, or to a component that no longer exists. Read-only &mdash; nothing in the file is changed.</p>
+    <div class="au-scope" id="au-scope"><button type="button" data-scope="page">Current page</button><button type="button" data-scope="all" class="on">All pages</button></div>
+    <div><button class="au-btn primary" id="au-btn-scan-main" type="button"><svg class="ic"><use href="#au-i-refresh"/></svg>Scan this file</button></div>
+  </div>
+
+  <div id="au-prog" class="au-prog" style="display:none">
+    <div class="au-card">
+      <div class="au-prog-head">
+        <svg class="ic au-spin"><use href="#au-i-refresh"/></svg>
+        <div class="au-prog-title"><b>Auditing&hellip;</b><div class="lbl" id="au-prog-file"></div></div>
+        <span class="au-prog-pct" id="au-prog-pct">0%</span>
+        <button class="au-btn" id="au-btn-cancel" type="button">Cancel</button>
+      </div>
+      <div class="track"><div class="fill" id="au-prog-fill"></div></div>
+      <div class="au-steps">
+        <div class="au-step on" id="au-step-1"><span class="n">1</span>Scan pages</div>
+        <div class="au-step" id="au-step-2"><span class="n">2</span>Verify libraries via API</div>
+        <div class="au-step" id="au-step-3"><span class="n">3</span>Build report</div>
+      </div>
+      <div class="au-tiles">
+        <div class="au-tile"><div class="k"><svg class="ic"><use href="#au-i-file"/></svg>Pages</div><div class="v" id="au-pt-pages">0</div><div class="p" id="au-pt-pages-sub">of &mdash;</div></div>
+        <div class="au-tile"><div class="k"><svg class="ic"><use href="#au-i-layers"/></svg>Instances</div><div class="v" id="au-pt-inst">0</div><div class="p">scanned so far</div></div>
+        <div class="au-tile"><div class="k"><svg class="ic"><use href="#au-i-comp"/></svg>Components</div><div class="v" id="au-pt-comp">0</div><div class="p">unique so far</div></div>
+        <div class="au-tile"><div class="k"><span class="au-dot c-miss"></span>Issues</div><div class="v" id="au-pt-issues">0</div><div class="p">flagged so far</div></div>
+      </div>
+      <div class="lbl au-prog-now" id="au-prog-lbl">Preparing&hellip;</div>
+      <div class="au-prog-tip"><svg class="ic"><use href="#au-i-info"/></svg>Large files can take a minute or two. The audit is read-only &mdash; nothing changes in your file.</div>
+    </div>
+  </div>
+
+  <div id="au-results" style="display:none"></div>
+
+  <div class="au-modal-overlay" id="au-modal-overlay">
+    <div class="au-modal">
+      <div class="au-modal-head">
+        <div><h3 id="au-modal-title"></h3><div class="au-modal-note" id="au-modal-note"></div></div>
+        <button class="au-btn" id="au-modal-close" type="button">Close</button>
+      </div>
+      <div class="au-modal-body" id="au-modal-body"></div>
+      <div class="au-modal-foot"><span class="au-hint" id="au-modal-count"></span><button class="au-btn" id="au-modal-copy" type="button">Copy list</button></div>
+    </div>
+  </div>
+</div>
+
 <!-- Format tabs (shared) -->
+<div class="naming-bar" id="naming-bar">
+  <span class="nb-title">NAMING</span>
+  <label class="nb-opt"><input type="checkbox" id="nb-collection" checked> Collection prefix</label>
+  <label class="nb-opt"><input type="checkbox" id="nb-dedupe" checked> Merge repeated words</label>
+  <label class="nb-opt nb-prefix">Prefix <input type="text" id="nb-prefix" placeholder="none" autocomplete="off"></label>
+  <button type="button" class="nb-more" id="nb-more">Per collection</button>
+  <span class="nb-example" id="nb-example"></span>
+</div>
+<div class="naming-cols" id="naming-cols">
+  <div class="nc-hint">Give a collection its own name in the export, or leave it blank to use the real one. Only applies while <b>Collection prefix</b> is on.</div>
+  <div id="nc-rows"></div>
+</div>
 <div class="format-tabs" id="format-tabs">
   <button class="format-tab active" data-format="figma" type="button">JSON</button>
   <button class="format-tab" data-format="css" type="button">CSS</button>
@@ -529,7 +772,26 @@ textarea.pub-input{resize:vertical;min-height:60px;font-family:'SF Mono','Fira C
   <button class="btn btn-close" id="btn-close" type="button">&#x2715;</button>
 </div>
 
-<div id="output"><pre><code id="output-code"></code></pre></div>
+<div id="output"><div id="out-load">
+  <div class="ol-head">
+    <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg>
+    <span class="ol-title">Reading your file&hellip;</span>
+  </div>
+  <div class="ol-sub" id="ol-sub">Hold on, we are going through every style and token.</div>
+  <div class="sk" style="width:38%"></div>
+  <div class="sk i1" style="width:62%"></div>
+  <div class="sk i2" style="width:48%"></div>
+  <div class="sk i2" style="width:56%"></div>
+  <div class="sk i3" style="width:34%"></div>
+  <div class="sk i3" style="width:41%"></div>
+  <div class="sk i2" style="width:29%"></div>
+  <div class="sk i1" style="width:52%"></div>
+  <div class="sk i2" style="width:45%"></div>
+  <div class="sk i3" style="width:37%"></div>
+  <div class="sk i1" style="width:24%"></div>
+  <div class="sk" style="width:18%"></div>
+  <div class="ol-note"><svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>Large design systems take a few seconds. Nothing in your file is being changed.</div>
+</div><pre><code id="output-code"></code></pre></div>
 <div class="file-hint" id="file-hint"></div>
 <div class="toast" id="toast"></div>
 
@@ -669,7 +931,7 @@ textarea.pub-input{resize:vertical;min-height:60px;font-family:'SF Mono','Fira C
           </div>
           <div class="pub-row">
             <label class="pub-label">PR title</label>
-            <input class="pub-input" id="pub-pr-title" type="text" placeholder="AJBY00: Update design tokens">
+            <input class="pub-input" id="pub-pr-title" type="text" placeholder="e.g. AJBY-123: Update design tokens">
           </div>
           <div class="pub-row">
             <label class="pub-label">PR description</label>
@@ -768,6 +1030,8 @@ let selectedModes = new Set();    // multi-select modes
 let selectedStyleGroups = new Set();
 let sgOpen = false;
 let allModes = [];
+let varSearchQuery = '';           // token name filter for the output panel
+let collectionsCollapsed = false;  // COLLECTIONS panel collapse state
 let syncCount = 0;
 let prevStylesBreakdown = null;
 let lastSyncTime = null;
@@ -921,7 +1185,7 @@ function buildStyleGroupsList() {
 // ═══════════════════════════════════════
 
 function formatStylesCSS(data) {
-  let o = '/* Styles \u2014 CSS Custom Properties */\n/* ' + data._meta.fileName + ' \u2014 ' + data._meta.exportedAt + ' */\n\n:root {\n';
+  let o = '/* This file is automatically generated. DO NOT EDIT as all your changes would be lost. */\n\n/* Styles \u2014 CSS Custom Properties */\n/* ' + data._meta.fileName + ' \u2014 ' + data._meta.exportedAt + ' */\n\n:root {\n';
   if (data.paintStyles.length) {
     o += '  /* Colours */\n';
     for (const s of data.paintStyles) {
@@ -1057,7 +1321,7 @@ function _flutterEffectStyles(data) {
 
 function formatStylesFlutter(data) {
   var cls = getFlutterClassName();
-  var o = "import 'package:flutter/material.dart';\n\n";
+  var o = "import 'package:flutter/material.dart';\n\n// This file is automatically generated. DO NOT EDIT as all your changes would be lost.\n\n";
 
   // Detect if text styles have multi-mode bound variables
   var modeNames = null;
@@ -1151,7 +1415,24 @@ function setNested(obj, path, value) {
 
 function getFilteredVariables() {
   if (!variablesData || !variablesData.collections) return [];
-  return variablesData.collections.filter(c => selectedCollections.has(c.id));
+  var cols = variablesData.collections.filter(c => selectedCollections.has(c.id));
+  var q = (varSearchQuery || '').trim().toLowerCase();
+  if (!q) return cols;
+  // Token search: keep only variables whose name matches; drop empty collections.
+  var out = [];
+  for (var c of cols) {
+    var vars = c.variables.filter(v => v.name.toLowerCase().indexOf(q) !== -1);
+    if (vars.length) out.push(Object.assign({}, c, { variables: vars, variableCount: vars.length }));
+  }
+  return out;
+}
+
+// How many tokens match the current search (across selected collections)
+function varSearchMatchCount() {
+  var cols = getFilteredVariables();
+  var n = 0;
+  for (var c of cols) n += c.variables.length;
+  return n;
 }
 
 function resolveValueStr(val) {
@@ -1175,6 +1456,11 @@ function formatVariablesFigma() {
   const activeModes = getActiveModes();
   for (const c of cols) {
     const col = { name: c.name, modes: c.modes, variables: c.variables };
+    // Preserve Global/library provenance so the Bitbucket/GitHub diff shows
+    // clearly which collections/tokens come from the global library.
+    if (c.source) col.source = c.source;
+    if (c.libraryName) col.libraryName = c.libraryName;
+    if (c.remote) col.remote = true;
     if (activeModes.length < allModes.length) {
       col.variables = c.variables.map(v => {
         const filtered = {};
@@ -1187,20 +1473,106 @@ function formatVariablesFigma() {
   return JSON.stringify(result, null, 2);
 }
 
+// ── Naming options for the CSS and W3C DTCG exports ──────────────────────
+// Variable names in this design system already carry their own prefix
+// (global-primitive/type/…), so prepending the collection can produce names like
+// primitives-global-global-primitive-… Everything here is configurable, and the
+// raw Figma JSON is deliberately left untouched: it is a faithful dump used for diffs.
+let auNameOpts = { collection: true, dedupe: true, prefix: '', aliases: {} };
+// Aliases are keyed by the disambiguated collection name, which is stable for a
+// given file, so a rename in the export survives closing and reopening the plugin.
+function auColAlias(c, namer) {
+  const key = namer(c);
+  const a = auNameOpts.aliases && auNameOpts.aliases[key];
+  return (a && a.trim()) ? a.trim() : key;
+}
+
+function auWords(str) { return String(str || '').split(/[\/\s]+/).filter(Boolean); }
+// Collapse a word that repeats immediately (global, global → global)
+function auDedupeWords(words) {
+  const out = [];
+  for (const w of words) if (!out.length || out[out.length - 1].toLowerCase() !== w.toLowerCase()) out.push(w);
+  return out;
+}
+// Path segments for a token, honouring the naming options
+function auTokenSegments(c, varName, namer) {
+  let segs = [];
+  if (auNameOpts.prefix) segs = segs.concat(auWords(auNameOpts.prefix));
+  if (auNameOpts.collection) segs = segs.concat(auWords(auColAlias(c, namer)));
+  segs = segs.concat(auWords(varName));
+  return auNameOpts.dedupe ? auDedupeWords(segs) : segs;
+}
+// Flat slug for CSS: dedupe reaches inside hyphens too, since it is all one name
+function auCssSlug(c, varName, namer) {
+  let words = [];
+  auTokenSegments(c, varName, namer).forEach(seg => { words = words.concat(String(seg).split('-').filter(Boolean)); });
+  if (auNameOpts.dedupe) words = auDedupeWords(words);
+  return toSlug(words.join('-'));
+}
+
+// Two collections can share a name (a local "primitives" and the global one).
+// Only disambiguate when they actually clash, so existing token names do not move.
+function auColNamer(cols) {
+  const count = {};
+  cols.forEach(c => { count[c.name] = (count[c.name] || 0) + 1; });
+  return c => (count[c.name] > 1 && c.source === 'global-library') ? c.name + '-global' : c.name;
+}
+// variable id → its collection and name, so an alias can be written as a full path
+function auRefIndex() {
+  const idx = {};
+  ((variablesData && variablesData.collections) || []).forEach(c =>
+    (c.variables || []).forEach(v => { idx[v.id] = { col: c, name: v.name }; }));
+  return idx;
+}
+// DTCG references are dot-separated paths, not Figma's slashes, and they must
+// include the collection or they resolve to nothing.
+function auDtcgRef(val, idx, namer) {
+  const t = idx[val.aliasId];
+  if (!t) return '{' + String(val.aliasName || '').split('/').join('.') + '}';
+  return '{' + auTokenSegments(t.col, t.name, namer).join('.') + '}';
+}
+function auDtcgToken(val, idx, namer) {
+  const tk = {};
+  if (val.type === 'color') { tk.$type = 'color'; tk.$value = val.hex + alphaToHex(val.a); }
+  else if (val.type === 'number') { tk.$type = 'number'; tk.$value = val.value; }
+  else if (val.type === 'string') { tk.$type = 'string'; tk.$value = val.value; }
+  else if (val.type === 'boolean') { tk.$type = 'boolean'; tk.$value = val.value; }
+  else if (val.type === 'alias') {
+    // $type comes from what the alias resolves to; "alias" is not a DTCG type
+    const rv = val.resolvedValue;
+    if (rv && rv.type === 'color') tk.$type = 'color';
+    else if (rv && rv.type === 'number') tk.$type = 'number';
+    else if (rv && rv.type === 'string') tk.$type = 'string';
+    else if (rv && rv.type === 'boolean') tk.$type = 'boolean';
+    tk.$value = auDtcgRef(val, idx, namer);
+  } else return null;
+  return tk;
+}
+
+// CSS aliases need the collection too, for the same reason as DTCG.
+// The index and the namer are built once per export, never per alias.
+function auCssRef(val, idx, namer) {
+  const t = idx[val.aliasId];
+  if (!t) return toSlug(val.aliasName || '');
+  return auCssSlug(t.col, t.name, namer);
+}
+
 function formatVariablesCSS() {
   const cols = getFilteredVariables();
-  let o = '/* Variables \u2014 CSS Custom Properties */\n\n';
+  let o = '/* This file is automatically generated. DO NOT EDIT as all your changes would be lost. */\n\n/* Variables \u2014 CSS Custom Properties */\n\n';
   const modes = getActiveModes();
+  const namer = auColNamer(cols);
+  const refIdx = auRefIndex();
 
   for (const modeName of modes) {
     const selector = modes.length === 1 ? ':root' : (modeName === allModes[0] ? ':root' : '[data-mode="' + toSlug(modeName) + '"]');
     o += selector + ' {\n';
     for (const c of cols) {
-      o += '  /* ' + c.name + ' */\n';
+      o += '  /* ' + c.name + (c.source === 'global-library' ? ' (global — ' + (c.libraryName || '') + ')' : '') + ' */\n';
       for (const v of c.variables) {
         const val = v.valuesByMode[modeName];
         if (!val) continue;
-        const slug = toSlug(c.name + '/' + v.name);
+        const slug = auCssSlug(c, v.name, namer);
         if (val.type === 'color') {
           const a = val.a !== undefined ? val.a : 1;
           o += '  --' + slug + ': ' + (a < 1 ? 'rgba(' + val.r + ',' + val.g + ',' + val.b + ',' + a.toFixed(2) + ')' : val.hex) + ';\n';
@@ -1211,7 +1583,7 @@ function formatVariablesCSS() {
         } else if (val.type === 'boolean') {
           o += '  --' + slug + ': ' + (val.value ? '1' : '0') + ';\n';
         } else if (val.type === 'alias') {
-          o += '  --' + slug + ': var(--' + toSlug(val.aliasName) + ');\n';
+          o += '  --' + slug + ': var(--' + auCssRef(val, refIdx, namer) + ');\n';
         }
       }
       o += '\n';
@@ -1256,11 +1628,14 @@ function _flutterVarLine(name, val) {
 function formatVariablesFlutter() {
   const cols = getFilteredVariables();
   const activeModes = getActiveModes();
-  let o = "import 'package:flutter/material.dart';\n\n";
+  let o = "import 'package:flutter/material.dart';\n\n// This file is automatically generated. DO NOT EDIT as all your changes would be lost.\n\n";
 
   var baseCls = getFlutterClassName();
   for (const c of cols) {
     var colSuffix = cols.length > 1 ? c.name.replace(/[^a-zA-Z0-9]/g, '') : '';
+    // Avoid duplicate Dart class names when a global collection shares a name
+    // with a local one (e.g. primitives / semantics).
+    if (c.source === 'global-library') colSuffix += 'Global';
 
     if (activeModes.length > 1) {
       // ── Multi-mode: one class per mode ──
@@ -1295,42 +1670,32 @@ function formatVariablesFlutter() {
 function formatVariablesDTCG() {
   const cols = getFilteredVariables();
   const activeModes = getActiveModes();
-  const t = {};
+  const namer = auColNamer(cols);
+  const idx = auRefIndex();
 
-  for (const c of cols) {
-    t[c.name] = {};
-    if (activeModes.length > 1) {
-      // Multi-mode: nest by mode
-      for (const mode of activeModes) {
-        t[c.name][mode] = {};
-        for (const v of c.variables) {
-          const val = v.valuesByMode[mode];
-          if (!val) continue;
-          const token = {};
-          if (val.type === 'color') { token.$type = 'color'; token.$value = val.hex + alphaToHex(val.a); }
-          else if (val.type === 'number') { token.$type = 'number'; token.$value = val.value; }
-          else if (val.type === 'string') { token.$type = 'string'; token.$value = val.value; }
-          else if (val.type === 'boolean') { token.$type = 'boolean'; token.$value = val.value; }
-          else if (val.type === 'alias') { token.$type = 'alias'; token.$value = '{' + val.aliasName + '}'; }
-          setNested(t[c.name][mode], v.name, token);
-        }
-      }
-    } else {
-      const modeName = activeModes[0] || allModes[0];
+  // With several modes the mode goes at the TOP, so each mode is a complete token
+  // set: references resolve inside it, and splitting into light.json / dark.json is
+  // just taking one key. Nesting the mode inside the path would make it part of
+  // every token's name.
+  const build = modeName => {
+    const out = {};
+    for (const c of cols) {
       for (const v of c.variables) {
         const val = v.valuesByMode[modeName];
         if (!val) continue;
-        const token = {};
-        if (val.type === 'color') { token.$type = 'color'; token.$value = val.hex + alphaToHex(val.a); }
-        else if (val.type === 'number') { token.$type = 'number'; token.$value = val.value; }
-        else if (val.type === 'string') { token.$type = 'string'; token.$value = val.value; }
-        else if (val.type === 'boolean') { token.$type = 'boolean'; token.$value = val.value; }
-        else if (val.type === 'alias') { token.$type = 'alias'; token.$value = '{' + val.aliasName + '}'; }
-        setNested(t[c.name], v.name, token);
+        const tk = auDtcgToken(val, idx, namer);
+        if (tk) setNested(out, auTokenSegments(c, v.name, namer).join('/'), tk);
       }
     }
+    return out;
+  };
+
+  if (activeModes.length > 1) {
+    const t = {};
+    for (const mode of activeModes) t[mode] = build(mode);
+    return JSON.stringify(t, null, 2);
   }
-  return JSON.stringify(t, null, 2);
+  return JSON.stringify(build(activeModes[0] || allModes[0]), null, 2);
 }
 
 // ═══════════════════════════════════════
@@ -1366,6 +1731,7 @@ function updateOutput() {
   var raw = getFormattedOutput();
   var highlighted = highlightCode(raw, currentFormat);
   document.getElementById('output-code').innerHTML = highlighted;
+  auNamingRefresh(false);
   var info = getFileInfo();
   document.getElementById('file-hint').textContent = info.label + '  \u2022  ' + info.prefix + info.ext;
 }
@@ -1590,16 +1956,68 @@ function buildCollectionsList() {
     for (const v of c.variables) { typeCount[v.resolvedType] = (typeCount[v.resolvedType] || 0) + 1; }
     const typeStr = Object.entries(typeCount).map(([k, v]) => v + ' ' + k.toLowerCase()).join(' \u2022 ');
 
+    const isGlobal = c.source === 'global-library' || c.remote === true;
+    const globalBadge = isGlobal
+      ? '<span style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:700;background:#5B47E0;color:#fff;vertical-align:middle;letter-spacing:.03em;">GLOBAL</span>'
+      : '';
+    const libNote = (isGlobal && c.libraryName)
+      ? '<span style="color:#5B47E0;font-weight:600;">from ' + c.libraryName + '</span>'
+      : '';
+    if (isGlobal) div.style.borderLeft = '3px solid #5B47E0';
     div.innerHTML = '<input type="checkbox" checked data-col-id="' + c.id + '">' +
       '<div class="collection-info">' +
-      '<div class="collection-name">' + c.name + '</div>' +
-      '<div class="collection-meta"><span>' + c.variableCount + ' vars</span><span>' + c.modes.length + ' mode' + (c.modes.length > 1 ? 's' : '') + ': ' + modeNames + '</span></div>' +
+      '<div class="collection-name">' + c.name + globalBadge + '</div>' +
+      '<div class="collection-meta"><span>' + c.variableCount + ' vars</span><span>' + c.modes.length + ' mode' + (c.modes.length > 1 ? 's' : '') + ': ' + modeNames + '</span>' + libNote + '</div>' +
       '</div>';
     list.appendChild(div);
   }
 
   // Build mode chips
   buildModeChips();
+  updateVariableStats();
+  updateCollectionsSummary();
+}
+
+// ── Token search + collections collapse ──
+function setCollectionsCollapsed(collapsed) {
+  collectionsCollapsed = collapsed;
+  var listEl = document.getElementById('collections-list');
+  var chev = document.getElementById('collections-chevron');
+  if (listEl) listEl.style.display = collapsed ? 'none' : '';
+  if (chev) chev.innerHTML = collapsed ? '&#x25B8;' : '&#x25BE;';
+  updateCollectionsSummary();
+}
+
+function updateCollectionsSummary() {
+  var el = document.getElementById('collections-summary');
+  if (!el) return;
+  if (!variablesData || !variablesData.collections || !variablesData.collections.length) { el.textContent = ''; return; }
+  var nSel = 0, nVars = 0;
+  for (var c of variablesData.collections) {
+    if (selectedCollections.has(c.id)) { nSel++; nVars += (c.variables ? c.variables.length : 0); }
+  }
+  el.textContent = '  · ' + nSel + '/' + variablesData.collections.length + ' selected · ' + nVars + ' vars';
+}
+
+function refreshSearchInfo() {
+  var q = (varSearchQuery || '').trim();
+  var clearBtn = document.getElementById('var-search-clear');
+  var info = document.getElementById('var-search-info');
+  if (clearBtn) clearBtn.style.display = q ? '' : 'none';
+  if (!info) return;
+  if (q) {
+    var n = varSearchMatchCount();
+    info.style.display = '';
+    info.textContent = n + ' token' + (n === 1 ? '' : 's') + ' match “' + q + '”';
+  } else {
+    info.style.display = 'none';
+    info.textContent = '';
+  }
+}
+
+function applyVarSearch() {
+  refreshSearchInfo();
+  updateOutput();
   updateVariableStats();
 }
 
@@ -1647,6 +2065,8 @@ function updateVariableStats() {
       container.innerHTML += '<div class="stat"><div class="stat-number">' + count + '</div><div class="stat-label">' + label + '</div></div>';
     }
   }
+  updateCollectionsSummary();
+  refreshSearchInfo();
 }
 
 function setSyncState(state) {
@@ -1657,7 +2077,35 @@ function setSyncState(state) {
   badge.className = 'sync-badge ' + state;
   btn.className = 'btn btn-sync' + (state === 'syncing' ? ' syncing' : '');
   label.textContent = state === 'syncing' ? 'Syncing...' : 'Synced';
-  btnText.textContent = state === 'syncing' ? 'Syncing...' : 'Sync';
+  btnText.textContent = 'Sync'; // status lives in the badge only; the button just spins while busy
+  if (state === 'syncing') startOutputLoader(); else stopOutputLoader();
+}
+
+// ── Output panel loading state: code skeleton + rotating status line ──
+const OL_STEPS = [
+  'Hold on, we are going through every style and token.',
+  'Collecting paint, text, effect and grid styles\u2026',
+  'Reading variable collections and their modes\u2026',
+  'Following alias chains across collections\u2026',
+  'Pulling the global library catalogue\u2026',
+  'Almost there \u2014 building the preview\u2026',
+];
+let _olTimer = null, _olStep = 0;
+function startOutputLoader() {
+  const box = document.getElementById('output'), sub = document.getElementById('ol-sub');
+  if (!box || !sub || _olTimer) return;
+  box.classList.add('loading');
+  _olStep = 0; sub.textContent = OL_STEPS[0];
+  _olTimer = setInterval(() => {
+    _olStep = (_olStep + 1) % OL_STEPS.length;
+    sub.classList.add('fade');
+    setTimeout(() => { sub.textContent = OL_STEPS[_olStep]; sub.classList.remove('fade'); }, 250);
+  }, 2600);
+}
+function stopOutputLoader() {
+  const box = document.getElementById('output');
+  if (_olTimer) { clearInterval(_olTimer); _olTimer = null; }
+  if (box) box.classList.remove('loading');
 }
 
 function updateTimestamp() {
@@ -1678,6 +2126,17 @@ function startTimer() { if (timerInterval) clearInterval(timerInterval); timerIn
 
 window.onmessage = (event) => {
   const msg = event.data.pluginMessage;
+  if (msg.type === 'naming-data') {
+    if (msg.payload) {
+      auNameOpts = Object.assign(auNameOpts, msg.payload);
+      document.getElementById('nb-collection').checked = !!auNameOpts.collection;
+      document.getElementById('nb-dedupe').checked = !!auNameOpts.dedupe;
+      document.getElementById('nb-prefix').value = auNameOpts.prefix || '';
+      auNameOpts.aliases = auNameOpts.aliases || {};
+    }
+    auNamingRefresh(false); updateOutput(); return;
+  }
+  if (msg.type === 'globals-done') { setSyncState('synced'); if (!msg.ok) console.warn('[GlobalVars]', msg.reason); return; }
   if (msg.type === 'all-data') {
     stylesData = msg.payload.styles;
     variablesData = msg.payload.variables;
@@ -1704,7 +2163,15 @@ window.onmessage = (event) => {
     updateTimestamp();
     startTimer();
 
-    if (syncCount > 1) showToast('Synced \u2014 ' + stylesData._meta.totalStyles + ' styles, ' + (variablesData._meta.totalVariables || 0) + ' variables');
+    if (msg.globalsPending) {
+      setSyncState('syncing');
+      const gl = document.getElementById('sync-label');
+      if (gl) gl.textContent = 'Loading global library\u2026';
+    } else if (msg.globalsLoaded) {
+      showToast('Global library loaded \u2014 ' + msg.globalsLoaded.variables.toLocaleString() + ' variables in ' + msg.globalsLoaded.collections + ' collections');
+    } else if (syncCount > 1) {
+      showToast('Synced \u2014 ' + stylesData._meta.totalStyles + ' styles, ' + (variablesData._meta.totalVariables || 0) + ' variables');
+    }
   }
 
   if (msg.type === 'doc-progress') {
@@ -1836,7 +2303,8 @@ document.getElementById('main-tabs').onclick = (e) => {
   currentSection = tab.dataset.section;
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.getElementById('section-' + currentSection).classList.add('active');
-  updateOutput();
+  document.body.classList.toggle('audit-mode', currentSection === 'audit');
+  if (currentSection === 'audit') auditOnTabOpen(); else updateOutput();
 };
 
 // Format tabs
@@ -1847,6 +2315,23 @@ document.getElementById('format-tabs').onclick = (e) => {
   tab.classList.add('active');
   currentFormat = tab.dataset.format;
   updateOutput();
+};
+
+// Token search input
+document.getElementById('var-search').oninput = (e) => {
+  varSearchQuery = e.target.value || '';
+  applyVarSearch();
+};
+document.getElementById('var-search-clear').onclick = () => {
+  varSearchQuery = '';
+  document.getElementById('var-search').value = '';
+  applyVarSearch();
+  document.getElementById('var-search').focus();
+};
+
+// Collections panel collapse toggle
+document.getElementById('collections-toggle').onclick = () => {
+  setCollectionsCollapsed(!collectionsCollapsed);
 };
 
 // Collection checkboxes
@@ -3318,7 +3803,7 @@ function openPublishModal() {
   // ── PR title & description: restore from saved, else defaults ──
   var d = new Date();
   var ds = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
-  document.getElementById('pub-pr-title').value = (cfg && cfg.prTitle) ? cfg.prTitle : 'AJBY00: Update ' + _pubScope + ' design tokens';
+  document.getElementById('pub-pr-title').value = (cfg && cfg.prTitle) ? cfg.prTitle : 'Update ' + _pubScope + ' design tokens';
   document.getElementById('pub-pr-desc').value = (cfg && cfg.prDesc) ? cfg.prDesc : 'Updated ' + _pubScope + ' design tokens exported from Figma on ' + ds + '.\n\nGenerated by DS Styles Extractor plugin.';
 
   // ── Reviewers: restore from saved ──
@@ -3975,7 +4460,7 @@ document.getElementById('btn-minimize').onclick = () => {
 document.getElementById('btn-expand').onclick = () => {
   isMinimized = false;
   document.body.classList.remove('minimized');
-  parent.postMessage({ pluginMessage: { type: 'resize-ui', width: 640, height: 760 } }, '*');
+  parent.postMessage({ pluginMessage: { type: 'resize-ui', width: 900, height: 860 } }, '*');
 };
 
 function updateMiniBar() {
@@ -3990,8 +4475,799 @@ function updateMiniBar() {
   }
 }
 
+// ── Initial loading state: the first sync imports the global library (~8s),
+// so show the spinner/"Syncing…" immediately until the first data arrives. ──
+setSyncState('syncing');
+
 // ── Pre-load last PR config so it's ready when the publish modal opens ──
 parent.postMessage({ pluginMessage: { type: 'bb-get-config' } }, '*');
+
+
+// ═══════════════════════════════════════
+// AUDIT TAB (v1.4.0) — broken links & deprecated components
+// The backend (code.js) scans and pre-classifies; this side settles
+// "unresolved" library keys with the Figma REST API (Graveyard map) and renders.
+// ═══════════════════════════════════════
+const AUDIT_BUILD_TOKEN = '__FIGMA_TOKEN__';                 // injected by build-zip.sh — never committed
+const AUDIT_BUILD_TOKEN_EXPIRES = '__FIGMA_TOKEN_EXPIRES__'; // ISO date, injected by build-zip.sh
+let auditTokenOverride = null;
+let auditScope = 'all';
+let auditLast = null;
+let auditFilter = 'all';
+let auditTokenChecked = false;
+let auditLastTokenStatus = 0;
+let auditApiErrors = [];  // { path, status } for whatever the scan could not read
+let _auCancelRest = false;
+const AU_REST_BUDGET_MS = 180000; // hard ceiling for the API phase, so it can never hang
+const AU_REST_WORKERS = 12;       // Figma answers 40 parallel lookups without complaint
+let auditFileInfo = null;   // { fileName, fileKey, pages, topLevelNodes }
+let auditLastSaved = null;  // compact copy of the previous scan of this file
+const auditLibCache = {}; // fileKey → Promise<lib>
+const auLoaded = [];      // libraries actually finished loading
+
+const auEl = id => document.getElementById(id);
+function auEsc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+// Page/layer names from Figma often carry emojis — the UI never shows them
+function auClean(s) { return String(s || '').replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu, '').replace(/\s{2,}/g, ' ').trim(); }
+
+// ── Token ──
+// Priority: the token BUILT INTO this release (shared, maintained by Alex) always
+// comes first. A per-computer override is only used when the built-in one is
+// missing or rejected by Figma — so a new release with a fresh token wins over
+// any stale override a user may have saved.
+let auditActiveToken = null;
+function auditBuildToken() {
+  if (AUDIT_BUILD_TOKEN && AUDIT_BUILD_TOKEN.indexOf('__') !== 0) {
+    return { token: AUDIT_BUILD_TOKEN, expires: AUDIT_BUILD_TOKEN_EXPIRES.indexOf('__') === 0 ? '' : AUDIT_BUILD_TOKEN_EXPIRES, source: 'built-in' };
+  }
+  return null;
+}
+function auditOverrideToken() {
+  return auditTokenOverride && auditTokenOverride.token ? { token: auditTokenOverride.token, expires: auditTokenOverride.expires || '', source: 'your own' } : null;
+}
+function auditToken() { return auditActiveToken || auditBuildToken() || auditOverrideToken(); }
+function auditDaysLeft(expires) {
+  if (!expires) return null;
+  const d = new Date(expires + 'T00:00:00');
+  if (isNaN(d.getTime())) return null;
+  return Math.ceil((d.getTime() - Date.now()) / 86400000);
+}
+function auditRenderTokenPill(state, text, tip) { const p = auEl('au-token-pill'); p.className = 'au-pill au-tip ' + state; auEl('au-token-text').textContent = text; p.setAttribute('data-tip', tip || ''); }
+function auditUpdateTokenPill(validity) {
+  const t = auditToken();
+  const how = ' Click to enter a token of your own.';
+  if (!t) { auditRenderTokenPill('bad', 'Token inactive', 'This copy of the plugin has no API token built in (development copy loaded from the repo folder?). Load it from local/ or from the release zip.' + how); return; }
+  if (validity === 'bad') { auditRenderTokenPill('bad', 'Token inactive', 'Figma rejected the API token (HTTP ' + (auditLastTokenStatus || '?') + ') \u2014 it is invalid or has expired.' + how); return; }
+  if (validity === 'unknown') { auditRenderTokenPill('warn', 'Token unverified', 'A token is built in, but the Figma API could not be reached to check it. The scan will show whether it worked.' + how); return; }
+  const days = auditDaysLeft(t.expires);
+  const base = (t.source === 'your own' ? 'Using your own API token' : 'Shared API token (built into this release)') + ' for the Graveyard check.';
+  if (days === null) auditRenderTokenPill('ok', 'Token active', base + how);
+  else if (days <= 0) auditRenderTokenPill('bad', 'Token inactive', 'The API token expired.' + how);
+  else if (days <= 3) auditRenderTokenPill('bad', 'Token active', base + ' Expires in ' + days + ' day' + (days === 1 ? '' : 's') + '.' + how);
+  else if (days <= 14) auditRenderTokenPill('warn', 'Token active', base + ' Expires in ' + days + ' days.' + how);
+  else auditRenderTokenPill('ok', 'Token active', base + ' Expires in ' + days + ' days.' + how);
+}
+async function auditValidateToken() {
+  const cands = [auditBuildToken(), auditOverrideToken()].filter(Boolean);
+  auditActiveToken = null; auditLastTokenStatus = 0; auditApiErrors = [];
+  if (!cands.length) { auditUpdateTokenPill(); return; }
+  for (const c of cands) {
+    try {
+      const r = await fetch('https://api.figma.com/v1/me', { headers: { 'X-Figma-Token': c.token } });
+      if (r.ok) { auditActiveToken = c; auditUpdateTokenPill('ok'); return; }
+      auditLastTokenStatus = r.status;
+    } catch (e) {
+      // The request never completed (offline, blocked). Do NOT claim the token is
+      // fine — say so, and let the scan settle it.
+      auditActiveToken = c; auditUpdateTokenPill('unknown'); return;
+    }
+  }
+  auditUpdateTokenPill('bad');
+}
+
+function auditOnTabOpen() {
+  if (auditTokenChecked) return;
+  auditTokenChecked = true;
+  parent.postMessage({ pluginMessage: { type: 'audit-get-token' } }, '*');
+  parent.postMessage({ pluginMessage: { type: 'audit-file-info' } }, '*');
+  parent.postMessage({ pluginMessage: { type: 'audit-get-last' } }, '*');
+}
+function auFmtDuration(ms) {
+  if (ms == null) return '';
+  const sec = Math.round(ms / 1000);
+  if (sec < 60) return sec + ' s';
+  const min = Math.floor(sec / 60), rest = sec % 60;
+  return min + ' min' + (rest && min < 10 ? ' ' + rest + ' s' : '');
+}
+function auRelTime(iso) {
+  const t = new Date(iso).getTime(); if (isNaN(t)) return '';
+  const m = Math.round((Date.now() - t) / 60000);
+  if (m < 1) return 'just now'; if (m < 60) return m + ' min ago';
+  const h = Math.round(m / 60); if (h < 24) return h + ' h ago';
+  const d = Math.round(h / 24); return d === 1 ? 'yesterday' : d + ' days ago';
+}
+// Start screen: "last scan" summary + size warning
+function auditRenderStartCards() {
+  const ic = id => '<svg class="ic"><use href="#au-i-' + id + '"/></svg>';
+  let last = '';
+  const L = auditLastSaved;
+  if (L) {
+    const total = Math.max(1, L.instancesScanned || 1), pc = n => (100 * n / total).toFixed(1) + '%';
+      const tile = (cls, label, n, tip) => '<div class="au-tile au-tip" data-tip="' + auEsc(tip) + '"><div class="k"><span class="au-dot ' + cls + '"></span>' + label + '</div><div class="v">' + n + '</div><div class="p">' + pc(n) + '</div></div>';
+    const health = (100 * (L.linkedCount || 0) / total).toFixed(1);
+    last = '<div class="au-card"><div class="au-last-head"><div><h3>Last scan</h3><div class="au-last-meta">' + auRelTime(L.scannedAt) + ' · took ' + auFmtDuration(L.durationMs) + ' · ' + (L.scope === 'page' ? 'current page' : L.pages + ' pages') + ' · ' + (L.instancesScanned || 0).toLocaleString() + ' instances</div></div>' +
+      '<button class="au-btn" id="au-btn-view-last" type="button">' + ic('layers') + 'View results</button></div>' +
+      '<div class="au-last-stats"><div class="au-tile"><div class="k">Health</div><div class="v">' + health + '%</div><div class="p">linked correctly</div></div>' +
+      tile('c-ok', 'Linked', L.linkedCount || 0, AU_TIP.linked) + tile('c-dep', 'Deprecated', L.depCount || 0, AU_TIP.dep) + tile('c-miss', 'Missing', L.missCount || 0, AU_TIP.miss) + tile('c-inh', 'Info only', L.inhCount || 0, AU_TIP.info) + '</div></div>';
+  }
+  let warn = '';
+  const F = auditFileInfo;
+  const big = (F && F.pages > 15) || (L && L.durationMs > 60000);
+  if (big) {
+    const est = L && L.durationMs ? 'The last full scan took <b style="display:inline">' + auFmtDuration(L.durationMs) + '</b>.' : 'Large design system files can take several minutes.';
+    warn = '<div class="au-card au-warn">' + ic('info') + '<div><b>Large file' + (F ? ' · ' + F.pages + ' pages' : '') + (L && L.instancesScanned ? ' · ~' + L.instancesScanned.toLocaleString() + ' instances' : '') + '</b>' +
+      est + ' The scan keeps running while you work in Figma, but keep the plugin open. For a quick check use <b style="display:inline">Current page</b>.</div></div>';
+  }
+  auEl('au-last').innerHTML = last;
+  auEl('au-warn').innerHTML = warn;
+  const v = auEl('au-btn-view-last');
+  if (v) v.onclick = () => { auditLast = auditLastSaved; auditFilter = 'all'; auEl('au-start').style.display = 'none'; auEl('au-results').style.display = 'block'; auEl('au-btn-scan-text').textContent = 'Re-scan'; auditRender(); };
+}
+// Compact copy for clientStorage: flagged components only (with rows), OK components as counts
+function auditCompact(p) {
+  const bad = p.components.filter(c => c.status === 'deprecated' || c.status === 'missing');
+  let linked = 0, dep = 0, miss = 0, inh = 0;
+  p.components.forEach(c => {
+    if (c.status !== 'deprecated' && c.status !== 'missing') { linked += c.count || (c.instances ? c.instances.length : 0); return; }
+    (c.instances || []).forEach(i => { if (i.nested) inh++; else if (c.status === 'deprecated') dep++; else miss++; });
+  });
+  return {
+    savedAt: Date.now(), fromCache: true, scannedAt: p.scannedAt, durationMs: p.durationMs, scope: p.scope, pages: p.pages,
+    fileName: p.fileName, fileKey: p.fileKey, instancesScanned: p.instancesScanned, libraries: p.libraries || [],
+    componentsTotal: p.components.length, linkedCount: linked, depCount: dep, missCount: miss, inhCount: inh,
+    components: bad.map(c => ({ uid: c.uid, id: c.id, key: c.key, name: c.name, remote: c.remote, status: c.status, detectedBy: c.detectedBy, replacement: c.replacement, libraryName: c.libraryName, count: c.count,
+      instances: (c.instances || []).map(i => ({ nodeId: i.nodeId, layerName: i.layerName, pageName: i.pageName, path: (i.path || []).slice(-4), nested: i.nested, nestedIn: i.nestedIn })) })),
+  };
+}
+// One tooltip element at body level: nothing can clip it, and it flips or shifts
+// to stay inside the plugin window.
+let _auTipEl = null;
+function auTipShow(el) {
+  const text = el.getAttribute('data-tip');
+  if (!text) return;
+  if (!_auTipEl) { _auTipEl = document.createElement('div'); _auTipEl.id = 'au-tooltip'; document.body.appendChild(_auTipEl); }
+  const t = _auTipEl;
+  t.textContent = text;
+  t.style.display = 'block';
+  const w = Math.min(300, window.innerWidth - 24);
+  t.style.width = w + 'px';
+  const r = el.getBoundingClientRect(), h = t.offsetHeight;
+  let left = r.left + r.width / 2 - w / 2;
+  left = Math.max(12, Math.min(left, window.innerWidth - w - 12));
+  let top = r.bottom + 8;
+  if (top + h > window.innerHeight - 12) top = Math.max(12, r.top - h - 8);
+  t.style.left = left + 'px'; t.style.top = top + 'px'; t.style.opacity = '1';
+}
+function auTipHide() { if (_auTipEl) { _auTipEl.style.opacity = '0'; _auTipEl.style.display = 'none'; } }
+document.addEventListener('mouseover', e => {
+  const el = e.target && e.target.closest ? e.target.closest('[data-tip]') : null;
+  if (el && el.getAttribute('data-tip')) auTipShow(el); else auTipHide();
+});
+document.addEventListener('scroll', auTipHide, true);
+
+auEl('au-token-pill').onclick = () => { auTipHide(); auEl('au-tokcard').classList.toggle('show'); };
+auEl('au-tok-save').onclick = () => {
+  const token = auEl('au-tok-input').value.trim();
+  const expires = auEl('au-tok-exp').value.trim();
+  if (!token) { showToast('Paste a token first'); return; }
+  parent.postMessage({ pluginMessage: { type: 'audit-save-token', payload: { token, expires } } }, '*');
+  auEl('au-tokcard').classList.remove('show');
+  showToast('Token saved on this computer');
+};
+auEl('au-tok-clear').onclick = () => {
+  parent.postMessage({ pluginMessage: { type: 'audit-clear-token' } }, '*');
+  auEl('au-tok-input').value = ''; auEl('au-tok-exp').value = '';
+  auEl('au-tokcard').classList.remove('show');
+};
+
+// ── Scan ──
+auEl('au-scope').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  auditScope = b.dataset.scope;
+  auEl('au-scope').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+};
+function auditStart() {
+  auEl('au-start').style.display = 'none';
+  auEl('au-results').style.display = 'none';
+  auEl('au-prog').style.display = 'block';
+  auditResetProgress();
+  auEl('au-btn-cancel').textContent = 'Cancel'; auEl('au-btn-cancel').disabled = false;
+  auEl('au-btn-scan').disabled = true;
+  parent.postMessage({ pluginMessage: { type: 'audit-scan', scope: auditScope } }, '*');
+}
+auEl('au-btn-scan').onclick = auditStart;
+auEl('au-btn-scan-main').onclick = auditStart;
+auEl('au-btn-cancel').onclick = () => { auEl('au-btn-cancel').textContent = 'Cancelling\u2026'; auEl('au-btn-cancel').disabled = true; _auCancelRest = true; parent.postMessage({ pluginMessage: { type: 'audit-cancel' } }, '*'); };
+function auditSetProgress(pct, label, stage, stats) {
+  pct = Math.max(1, Math.min(100, pct));
+  auEl('au-prog-fill').style.width = pct + '%';
+  auEl('au-prog-pct').textContent = Math.round(pct) + '%';
+  auEl('au-prog-lbl').textContent = label;
+  const steps = ['scan', 'rest', 'expand'];
+  steps.forEach((st, i) => {
+    const el = auEl('au-step-' + (i + 1)); if (!el || !stage) return;
+    const idx = steps.indexOf(stage);
+    el.className = 'au-step' + (i < idx ? ' done' : i === idx ? ' on' : '');
+  });
+  if (stats) {
+    if (stats.pages != null) { auEl('au-pt-pages').textContent = stats.pagesDone; auEl('au-pt-pages-sub').textContent = 'of ' + stats.pages; }
+    if (stats.scanned != null) auEl('au-pt-inst').textContent = stats.scanned.toLocaleString();
+    if (stats.components != null) auEl('au-pt-comp').textContent = stats.components;
+    if (stats.issues != null) auEl('au-pt-issues').textContent = stats.issues;
+  }
+}
+function auditResetProgress() {
+  ['au-pt-pages', 'au-pt-inst', 'au-pt-comp', 'au-pt-issues'].forEach(id => auEl(id).textContent = '0');
+  auEl('au-pt-pages-sub').textContent = 'of \u2014';
+  auEl('au-prog-file').textContent = document.getElementById('subtitle') ? auClean(document.getElementById('subtitle').textContent) : '';
+  auditSetProgress(1, 'Preparing\u2026', 'scan');
+}
+
+// ── Messages from code.js (wraps the existing handler, nothing else changes) ──
+const _auPrevOnMessage = window.onmessage;
+window.onmessage = (event) => {
+  const m = event.data && event.data.pluginMessage;
+  if (m && typeof m.type === 'string' && m.type.indexOf('audit-') === 0) { auditHandleMessage(m); return; }
+  return _auPrevOnMessage(event);
+};
+function auditHandleMessage(m) {
+  if (m.type === 'audit-progress') {
+    const f = m.total ? m.current / m.total : 1;
+    const stats = { scanned: m.scanned, components: m.components, issues: m.issues };
+    if (m.stage === 'scan') {
+      stats.pages = m.total; stats.pagesDone = m.current;
+      const name = auClean(m.label);
+      auditSetProgress(f * 70, m.current >= m.total ? 'All pages scanned' : 'Scanning page ' + (m.current + 1) + ' of ' + m.total + (name ? ' \u2014 ' + name : ''), 'scan', stats);
+    } else {
+      auditSetProgress(60 + f * 25, 'Checking library components ' + m.current + ' of ' + m.total, 'resolve', stats);
+    }
+  }
+  if (m.type === 'audit-result') auditFinish(m.payload);
+  if (m.type === 'audit-expanded' && _auExpandResolve) { const r = _auExpandResolve; _auExpandResolve = null; r(m.rows || {}); }
+  if (m.type === 'audit-error') {
+    auEl('au-btn-scan').disabled = false;
+    auEl('au-prog').style.display = 'none';
+    auEl('au-start').style.display = 'block';
+    showToast('Audit failed: ' + m.message);
+  }
+  if (m.type === 'audit-cancelled') {
+    auEl('au-btn-scan').disabled = false;
+    auEl('au-prog').style.display = 'none';
+    auEl('au-start').style.display = 'block';
+    showToast('Audit cancelled');
+  }
+  if (m.type === 'audit-doc-progress') {
+    const b = auEl('au-make-doc');
+    if (m.stage !== 'start' && b) { b.disabled = false; b.innerHTML = '<svg class="ic"><use href="#au-i-doc"/></svg>Create report in Figma'; }
+    if (m.stage === 'done') showToast('Audit report created on canvas');
+    if (m.stage === 'error') showToast('Could not create the report: ' + m.message);
+  }
+  if (m.type === 'audit-file-info') { auditFileInfo = m.payload; auditRenderStartCards(); }
+  if (m.type === 'audit-last-data') { auditLastSaved = m.payload; auditRenderStartCards(); }
+  if (m.type === 'audit-last-saved' && !m.ok) showToast('Could not save the last scan (storage full)');
+  if (m.type === 'audit-token-data') {
+    auditTokenOverride = m.payload;
+    if (m.payload) { auEl('au-tok-input').value = m.payload.token || ''; auEl('au-tok-exp').value = m.payload.expires || ''; }
+    auditValidateToken();
+  }
+}
+
+// ── REST: Graveyard map per library ──
+const auSleep = ms => new Promise(r => setTimeout(r, ms));
+// Plain-language reason for a failed lookup, so a note never has to guess
+function auWhy(status, what) {
+  if (!status) return 'the request never completed while ' + what + ' (network or connection blocked)';
+  if (status === 429) return 'Figma kept asking us to slow down while ' + what + ' (HTTP 429)';
+  if (status === 401) return 'Figma rejected the token while ' + what + ' (HTTP 401)';
+  if (status === 400) return 'Figma did not accept the request while ' + what + ' (HTTP 400)';
+  if (status >= 500) return 'the Figma API had an error while ' + what + ' (HTTP ' + status + ')';
+  return 'the API answered HTTP ' + status + ' while ' + what;
+}
+// Figma throttles bursts of REST calls. A 429 (and sometimes a 403 under load) is a
+// "slow down", not "your token is bad", so back off and try again before giving up.
+async function auFetch(path, token, attempt) {
+  attempt = attempt || 0;
+  const r = await fetch('https://api.figma.com/v1' + path, { headers: { 'X-Figma-Token': token } });
+  if (r.ok) return r.json();
+  if ((r.status === 429 || r.status === 500 || r.status === 503) && attempt < 2) {
+    const wait = Number(r.headers.get('Retry-After')) * 1000 || (600 * Math.pow(2, attempt));
+    await auSleep(Math.min(wait, 3000));
+    return auFetch(path, token, attempt + 1);
+  }
+  const e = new Error('HTTP ' + r.status); e.status = r.status; throw e;
+  }
+async function auditLoadLibrary(fileKey, token) {
+  if (auditLibCache[fileKey]) return auditLibCache[fileKey];
+  auditLibCache[fileKey] = auditLoadLibraryInner(fileKey, token);
+  return auditLibCache[fileKey];
+}
+async function auditLoadLibraryInner(fileKey, token) {
+  const lib = { fileKey, name: fileKey, pub: new Set(), grave: new Set(), gravePage: '' };
+  auLoaded.push(lib);
+  const comps = await auFetch('/files/' + fileKey + '/components', token);
+  ((comps.meta && comps.meta.components) || []).forEach(c => lib.pub.add(c.key));
+  const file = await auFetch('/files/' + fileKey + '?depth=1', token);
+  lib.name = file.name || fileKey;
+  const gpage = ((file.document && file.document.children) || []).find(p => /graveyard/i.test(p.name));
+  if (gpage) {
+    lib.gravePage = gpage.name;
+    const nodes = await auFetch('/files/' + fileKey + '/nodes?ids=' + encodeURIComponent(gpage.id), token);
+    const entry = nodes.nodes && nodes.nodes[gpage.id];
+    if (entry && entry.document) {
+      const map = entry.components || {};
+      (function walk(n) {
+        if ((n.type === 'COMPONENT' || n.type === 'COMPONENT_SET') && map[n.id] && map[n.id].key) lib.grave.add(map[n.id].key);
+        (n.children || []).forEach(walk);
+      })(entry.document);
+    }
+  }
+  return lib;
+}
+const auLibs = () => auLoaded;
+async function auditResolveWithRest(payload, onProgress) {
+  const t = auditToken();
+  const comps = payload.components;
+  const isPrivate = c => /^[._]/.test((c.setName || c.name || '').trim());
+  const remoteAll = comps.filter(c => c.remote && c.key && c.status === 'ok');
+  const remote = remoteAll.filter(c => !isPrivate(c));
+  const privateHelpers = remoteAll.filter(isPrivate);
+  privateHelpers.forEach(c => { c.privateHelper = true; });
+  payload.privateHelpers = privateHelpers.length;
+  payload.privateHelperNames = Array.from(new Set(privateHelpers.map(c => auClean(c.setName || c.name)))).sort().slice(0, 200);
+  payload.privateHelperInstances = privateHelpers.reduce((n, c) => n + (c.count || 0), 0);
+  payload.libraries = []; payload.unverified = false; payload.apiErrors = [];
+  auditApiErrors = [];
+  if (!t) { payload.unverified = true; payload.apiReason = 'no API token in this build'; return; }
+
+  const noteErr = (path, status) => {
+    if (auditApiErrors.length < 12 && !auditApiErrors.some(e => e.status === status && e.path === path)) {
+      auditApiErrors.push({ path, status });
+    }
+  };
+  // A component key we cannot resolve is unverifiable — never guess "missing" from it
+  const unverifiable = new Map();  // key → why it could not be checked
+  const notFound = new Set();
+  const noAccess = new Set();  // 403: live component in a library this token cannot open
+  let ok = 0, authFail = 0;
+  _auCancelRest = false;
+
+  // Look the unknown keys up in parallel, with a hard time budget. A slow or
+  // throttled API must never leave the scan hanging: whatever is left when the
+  // budget runs out is reported as "not checked", never guessed at.
+  const pending = [], seenKey = new Set();
+  for (const c of remote) { if (!seenKey.has(c.key)) { seenKey.add(c.key); pending.push(c.key); } }
+  const deadline = Date.now() + AU_REST_BUDGET_MS;
+  let idx = 0, done = 0, timedOut = false;
+  const covered = k => auLibs().some(l => l.pub.has(k) || l.grave.has(k)) || notFound.has(k) || unverifiable.has(k);
+
+  async function auWorker() {
+    while (idx < pending.length) {
+      if (_auCancelRest) return;
+      if (Date.now() > deadline) { timedOut = true; return; }
+      const key = pending[idx++];
+      done++;
+      if (done % 4 === 0 || done === pending.length) {
+        onProgress('Verifying library components\u2026 ' + done + ' of ' + pending.length
+          + ' \u00b7 ' + auLibs().length + ' librar' + (auLibs().length === 1 ? 'y' : 'ies') + ' read \u00b7 ' + Math.max(0, Math.round((deadline - Date.now()) / 1000)) + 's left',
+          70 + 22 * done / Math.max(1, pending.length));
+      }
+      if (covered(key)) continue;
+      try {
+        const meta = (await auFetch('/components/' + key, t.token)).meta;
+        if (meta && meta.file_key) {
+          try { await auditLoadLibrary(meta.file_key, t.token); ok++; }
+          catch (e2) { noteErr('files/' + meta.file_key, e2.status || 'network'); unverifiable.set(key, auWhy(e2.status, 'reading its library')); }
+        } else { notFound.add(key); ok++; }
+      } catch (e) {
+        if (e.status === 404) { notFound.add(key); ok++; }        // published nowhere → really gone
+        else if (e.status === 403) { noAccess.add(key); ok++; }   // exists, but in a library we cannot read
+        else { if (e.status === 401) authFail++; noteErr('components/:key', e.status || 'network'); unverifiable.set(key, auWhy(e.status, 'looking it up')); }
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: AU_REST_WORKERS }, auWorker));
+  for (let i = idx; i < pending.length; i++) unverifiable.set(pending[i], _auCancelRest ? 'you cancelled the scan' : 'the API phase ran out of time before reaching it');
+  if (timedOut) noteErr('time budget', Math.round(AU_REST_BUDGET_MS / 1000) + 's');
+  if (_auCancelRest) noteErr('cancelled', 'by you');
+
+  for (const c of remote) {
+    const g = auLibs().find(l => l.grave.has(c.key));
+    if (g) { c.status = 'deprecated'; c.detectedBy = ['Graveyard page \u00b7 ' + g.name]; c.libraryName = g.name; continue; }
+    const l = auLibs().find(l => l.pub.has(c.key));
+    if (l) { c.libraryName = l.name; continue; }
+    if (notFound.has(c.key)) { c.status = 'missing'; c.detectedBy = ['key not published in any library']; }
+    else if (noAccess.has(c.key)) { c.noAccess = true; }  // exists and works; retirement status unknown
+    else { c.unverified = true; c.unverifiedWhy = unverifiable.get(c.key) || ''; }  // left alone, never guessed
+  }
+
+  payload.libraries = auLibs().map(l => l.name);
+  payload.apiErrors = auditApiErrors.slice();
+  const unv = remote.filter(c => c.unverified);
+  payload.unverifiedCount = unv.length;
+  payload.unverifiedNames = Array.from(new Set(unv.map(c => auClean(c.setName || c.name)))).sort().slice(0, 200);
+  payload.unverifiedItems = unv.slice(0, 200).map(c => ({ name: auClean(c.setName || c.name), why: unverifiable.get(c.key) || 'unknown' }));
+  const blocked = remote.filter(c => c.noAccess);
+  payload.noAccessCount = blocked.length;
+  payload.noAccessNames = Array.from(new Set(blocked.map(c => auClean(c.setName || c.name)))).sort().slice(0, 200);
+
+  if (authFail && ok === 0) {
+    // Nothing at all could be read and it was an auth refusal: re-check the token itself
+    // before blaming it, so a permissions problem is not reported as an expired token.
+    payload.unverified = true;
+    try {
+      const r = await fetch('https://api.figma.com/v1/me', { headers: { 'X-Figma-Token': t.token } });
+      if (r.ok) { payload.apiReason = 'the token works, but it is not allowed to read those libraries'; auditUpdateTokenPill('ok'); }
+      else { auditLastTokenStatus = r.status; payload.apiReason = 'Figma rejected the token (HTTP ' + r.status + ')'; auditUpdateTokenPill('bad'); }
+    } catch (e) { payload.apiReason = 'the Figma API could not be reached'; auditUpdateTokenPill('unknown'); }
+  } else if (payload.unverifiedCount) {
+    payload.unverified = true;
+    payload.apiReason = payload.unverifiedCount + ' component' + (payload.unverifiedCount === 1 ? '' : 's')
+      + ' could not be checked' + (auditApiErrors.length ? ' (' + auditApiErrors.map(e => e.path + ' \u2192 ' + e.status).join(', ') + ')' : '');
+  }
+}
+
+// Ask code.js for the full rows (layer path, nesting) of components flagged by the REST step
+let _auExpandResolve = null;
+function auditExpandRows(payload) {
+  const uids = payload.components.filter(c => (c.status === 'deprecated' || c.status === 'missing') && !c.instances).map(c => c.uid);
+  if (!uids.length) return Promise.resolve();
+  return new Promise(resolve => {
+    const done = rows => { payload.components.forEach(c => { if (rows[c.uid]) c.instances = rows[c.uid]; }); resolve(); };
+    _auExpandResolve = done;
+    setTimeout(() => { if (_auExpandResolve === done) { _auExpandResolve = null; done({}); } }, 60000);
+    parent.postMessage({ pluginMessage: { type: 'audit-expand', uids } }, '*');
+  });
+}
+
+async function auditFinish(payload) {
+  auditSetProgress(70, 'Verifying library components via the Figma API\u2026', 'rest');
+  await auditResolveWithRest(payload, (lbl, pct) => auditSetProgress(pct || 80, lbl, 'rest'));
+  auditSetProgress(93, 'Building the report\u2026', 'expand');
+  await auditExpandRows(payload);
+  auditLast = payload; auditFilter = 'all';
+  auditLastSaved = auditCompact(payload);
+  parent.postMessage({ pluginMessage: { type: 'audit-save-last', payload: auditLastSaved } }, '*');
+  auditRenderStartCards();
+  auEl('au-prog').style.display = 'none';
+  auEl('au-results').style.display = 'block';
+  auEl('au-btn-scan').disabled = false;
+  auEl('au-btn-scan-text').textContent = 'Re-scan';
+  auditRender();
+}
+
+// ── Model + render ──
+const AU_GRAVE_RE = /graveyard/i;
+// Plain-language meaning of every status, shown on hover. Kept at module scope
+// because both the "last scan" card and the results view use it.
+const AU_TIP = {
+  linked: 'Points to a component that exists, is published and has not been retired. Nothing to do.',
+  broken: 'The component it points to no longer exists, or is no longer published in any library you can reach. Figma still draws it from its local cache, so it looks fine, but the link is dead and it will never update again. This is the only category that is genuinely broken.',
+  comp: 'A live, published component is built on a retired one. Nothing looks wrong, but every design that places this component inherits the retired dependency, so fixing it once here clears it everywhere. This is the one worth chasing first after broken links.',
+  design: 'A retired component used directly in a design or template. Nothing is broken; swap it for the current component when you next touch that screen.',
+  info: 'Cannot be fixed where it sits: either nested inside another instance (it is fixed in the component that contains it) or on a Graveyard page, which is retired material and expected. Not counted as issues.',
+};
+function auditModel(p) {
+  let linked = 0, broken = 0, inComp = 0, inDesign = 0, info = 0;
+  const byPage = {}, groups = new Map();
+  p.components.forEach(c => {
+    const bad = c.status === 'deprecated' || c.status === 'missing';
+    if (!bad) { linked += c.count != null ? c.count : (c.instances ? c.instances.length : 0); return; }
+    const inst = c.instances || [];
+    // Placed on a live page you can edit vs. reported apart (nested, or retired area)
+    const direct = [], side = [];
+    inst.forEach(i => {
+      const inGrave = AU_GRAVE_RE.test(i.pageName || '');
+      if (i.nested || inGrave) side.push(Object.assign({}, i, { reason: i.nested ? 'nested' : 'graveyard' }));
+      else direct.push(i);
+    });
+    direct.forEach(i => {
+      if (c.status === 'missing') broken++;
+      else if (i.inComponent) inComp++;   // baked into a live component: propagates to everyone
+      else inDesign++;                    // used in a design or template: swap it there
+      byPage[i.pageName] = (byPage[i.pageName] || 0) + 1;
+    });
+    info += side.length;
+    const key = (c.setName || c.name) + '|' + c.status;
+    let g = groups.get(key);
+    if (!g) { g = { c: Object.assign({}, c, { name: c.setName || c.name }), direct: [], nested: [], variants: new Set() }; groups.set(key, g); }
+    if (c.variantName) g.variants.add(c.variantName);
+    g.direct = g.direct.concat(direct); g.nested = g.nested.concat(side);
+    (c.detectedBy || []).forEach(d => { if (g.c.detectedBy.indexOf(d) === -1) g.c.detectedBy.push(d); });
+    if (!g.c.replacement && c.replacement) g.c.replacement = c.replacement;
+  });
+  const ORDER = { broken: 0, component: 1, design: 2 };
+  const rows = Array.from(groups.values())
+    .map(r => { r.sev = auSev(r); return r; })
+    .sort((a, b) => (ORDER[a.sev] - ORDER[b.sev]) || (b.direct.length - a.direct.length));
+  if (p.linkedCount != null && !p.components.some(c => c.status !== 'deprecated' && c.status !== 'missing')) linked = p.linkedCount;
+  return { rows, linked, broken, inComp, inDesign, dep: inComp + inDesign, miss: broken, inh: info, info,
+           total: Math.max(1, p.instancesScanned), byPage };
+}
+// How urgent a row is. Broken links first, then retired components baked into live
+// components (one fix clears every consumer), then retired components used in designs.
+function auSev(r) {
+  if (r.c.status === 'missing') return 'broken';
+  return r.direct.some(i => i.inComponent) ? 'component' : 'design';
+}
+function auditRender() {
+  try { auditRenderInner(); }
+  catch (err) {
+    console.error('[Audit] render failed:', err);
+    auEl('au-results').innerHTML = '<div class="au-tbl"><div class="au-empty"><b>Could not draw the results.</b><br>' + auEsc(String(err && err.message || err)) + '<br>The scan itself finished — use Download JSON below, or scan again.</div></div>' +
+      '<div class="au-foot"><button class="au-btn" id="au-dl-json" type="button">Download JSON</button></div>';
+    const d = auEl('au-dl-json');
+    if (d) d.onclick = () => auDownload(JSON.stringify(auditLast, null, 2), 'audit-raw.json', 'application/json');
+  }
+}
+function auditRenderInner() {
+  const p = auditLast, m = auditModel(p);
+  const pct = n => (100 * n / m.total).toFixed(1) + '%';
+  const SEV = { broken: ['miss', 'Broken'], component: ['comp', 'In component'], design: ['dep', 'In design'] };
+  const badge = sev => '<span class="au-badge ' + SEV[sev][0] + '">' + SEV[sev][1] + '</span>';
+  const issueCount = m.broken + m.inComp + m.inDesign;
+  const compCount = m.rows.filter(r => r.direct.length).length;
+  auEl('badge-audit').textContent = issueCount;
+  const ic = id => '<svg class="ic"><use href="#au-i-' + id + '"/></svg>';
+  const tile = (cls, label, n, tip) => '<div class="au-tile au-tip" data-tip="' + auEsc(tip) + '"><div class="k"><span class="au-dot ' + cls + '"></span>' + label + '</div><div class="v">' + n + '</div><div class="p">' + pct(n) + '</div></div>';
+  const chip = (k, l, n, tip) => '<span class="au-chip au-tip' + (auditFilter === k ? ' on' : '') + '" data-f="' + k + '" data-tip="' + auEsc(tip || '') + '">' + l + ' <span class="c">' + n + '</span></span>';
+  const locCell = i => '<div class="au-cell"><div>' + auEsc(auClean(i.path.length ? i.path[i.path.length - 1] : i.layerName)) + '</div><div class="sub" title="' + auEsc(i.path.join(' / ')) + '">' + ic('file') + auEsc(auClean(i.pageName)) + ' › ' + (auEsc(auClean(i.path.slice(0, -1).join(' / '))) || '—') + '</div></div>';
+  const locBtn = id => '<button class="au-btn" data-locate="' + auEsc(id) + '" type="button">' + ic('locate') + 'Locate</button>';
+  const pages = Object.keys(m.byPage).map(k => [k, m.byPage[k]]).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const maxP = pages.length ? pages[0][1] : 1;
+  const nLibs = (p.libraries || []).length;
+
+  let h = '';
+  if (p.fromCache) h += '<div class="au-banner">' + ic('info') + '<span>Results from the <b>last scan</b> (' + auRelTime(p.scannedAt) + '). The file may have changed since \u2014 layers that no longer exist cannot be located.</span><button class="au-btn primary" id="au-btn-rescan-banner" type="button">' + ic('refresh') + 'Scan again</button></div>';
+  if (p.privateHelpers) h += '<div class="au-banner">' + ic('info') + '<span><b>' + p.privateHelpers.toLocaleString() + ' private component' + (p.privateHelpers === 1 ? '' : 's') + ' skipped, and that is normal.</b> A component whose name starts with a dot or an underscore is private in Figma: it is never published to a library, because it only exists as an internal part of a published component. The library API therefore has nothing to say about them, and checking them would only make the scan slower. <b>They count as correctly linked and do not affect the health score.</b></span><button class="au-btn" id="au-private-list" type="button">Show them</button></div>';
+  if (p.noAccessCount) h += '<div class="au-banner" id="au-noaccess-banner">' + ic('info') + '<span><b>' + p.noAccessCount + ' component' + (p.noAccessCount === 1 ? '' : 's') + ' live in a library this token cannot open.</b> They exist and work \u2014 they are <b>not</b> broken \u2014 but whether they have been retired could not be checked. Ask for read access to that library to cover them.</span><button class="au-btn" id="au-noaccess-list" type="button">Show them</button></div>';
+  if (p.unverified) h += '<div class="au-banner" style="border-color:#e0a800">' + ic('info') + '<span><b>Some library components were not checked.</b> ' + auEsc(p.apiReason || 'the Figma API was unavailable') + '. They are left out of the results rather than guessed at, so nothing here is a false alarm \u2014 there may just be more to find.</span>' + ((p.unverifiedNames && p.unverifiedNames.length) ? '<button class="au-btn" id="au-unchecked-list" type="button">Show them</button>' : '<span></span>') + '</div>';
+  h += '<div class="au-meta"><span class="fname">' + ic('file') + auEsc(auClean(p.fileName)) + '</span>' +
+    '<span>' + ic('layers') + p.instancesScanned.toLocaleString() + ' instances</span>' +
+    '<span>' + ic('comp') + (p.componentsTotal || p.components.length) + ' components</span>' +
+    '<span>' + ic('lib') + (nLibs ? nLibs + ' librar' + (nLibs === 1 ? 'y' : 'ies') + ' verified' : 'libraries not verified') + '</span>' +
+    (p.privateHelpers ? '<span>' + ic('info') + p.privateHelpers.toLocaleString() + ' private components</span>' : '') +
+    '<span>' + ic('file') + (p.scope === 'page' ? 'current page' : p.pages + ' pages') + '</span>' + (p.durationMs ? '<span>' + ic('clock') + auFmtDuration(p.durationMs) + '</span>' : '') + '</div>';
+
+  const hp = 100 * m.linked / m.total;
+  const hpCls = hp >= 99.5 ? 'good' : (hp >= 98 ? 'warn' : 'bad');
+  const compTotal = p.componentsTotal || p.components.length;
+  const compAff = m.rows.filter(r => r.direct.length).length;
+  h += '<div class="au-grid2"><div class="au-card">' +
+    '<div class="au-health"><div class="au-health-num ' + hpCls + '">' + hp.toFixed(2).replace(/\.00$/, '') + '%</div>' +
+    '<div class="au-health-txt"><b>Design system health</b><span>' + compAff.toLocaleString() + ' of ' + compTotal.toLocaleString() + ' components affected</span></div></div>' +
+    '<div class="au-bar"><span class="c-ok" style="width:' + pct(m.linked) + '"></span><span class="c-dep" style="width:' + pct(m.dep) + '"></span><span class="c-miss" style="width:' + pct(m.miss) + '"></span><span class="c-inh" style="width:' + pct(m.inh) + '"></span></div>' +
+    '<div class="au-tiles t5">' + tile('c-ok', 'Linked', m.linked, AU_TIP.linked) + tile('c-miss', 'Broken', m.broken, AU_TIP.broken) + tile('c-comp', 'In components', m.inComp, AU_TIP.comp) + tile('c-dep', 'In designs', m.inDesign, AU_TIP.design) + tile('c-inh', 'Info only', m.info, AU_TIP.info) + '</div>' + '<div class="au-legend">' + ic('info') + '<span>Hover any label for the full meaning. Only <b>Broken</b> is actually broken. <b>In components</b> is the one to chase next: a live component built on a retired one, so one fix clears every design that uses it.</span></div></div>' +
+    '<div class="au-card"><h3>Issues by live pages</h3><div class="au-legend" style="margin:-6px 0 10px"><span>Pages your team works on today. Graveyard and other retired areas are excluded \u2014 they are under Info only.</span></div>' + (pages.length
+      ? pages.map(pg => '<div class="au-pg"><span class="n">' + ic('file') + auEsc(auClean(pg[0])) + '</span><div class="pb"><span style="width:' + (100 * pg[1] / maxP) + '%"></span></div><b>' + pg[1] + '</b></div>').join('')
+      : '<div class="au-empty">No issues</div>') + '</div></div>';
+
+  const sevLine = [m.broken ? m.broken.toLocaleString() + ' broken' : '', m.inComp ? m.inComp.toLocaleString() + ' in components' : '', m.inDesign ? m.inDesign.toLocaleString() + ' in designs' : ''].filter(Boolean).join(' · ') || 'nothing to fix';
+  h += '<div class="au-sect"><h3>' + sevLine + ' \u00b7 ' + compCount + ' component' + (compCount === 1 ? '' : 's') + '</h3><span class="au-hint">Click a row to expand · Locate selects the layer</span></div>';
+  h += '<div class="au-chips" id="au-chips">' + chip('all', 'All', issueCount, 'Everything that needs action on a live page.') + chip('broken', 'Broken', m.broken, AU_TIP.broken) + chip('component', 'In components', m.inComp, AU_TIP.comp) + chip('design', 'In designs', m.inDesign, AU_TIP.design) + '</div>';
+
+  if (!issueCount && !m.info) {
+    h += '<div class="au-tbl"><div class="au-empty"><svg class="ic" style="width:24px;height:24px;color:#1e9e5a"><use href="#au-i-check"/></svg><br><b>All clear</b><br>Every instance points to a live, non-deprecated component.</div></div>';
+  } else {
+    const shown = m.rows.filter(r => r.direct.length && (auditFilter === 'all' || r.sev === auditFilter));
+    h += '<div class="au-tbl"><div class="au-tr th"><span>Status</span><span>Component</span><span>Location</span><span></span></div>';
+    if (!shown.length) h += '<div class="au-empty">Nothing in this filter</div>';
+    shown.forEach(r => {
+      const first = r.direct[0];
+      h += '<div class="au-tr row">' + badge(r.sev) +
+        '<div class="au-cell" title="' + auEsc(auClean(r.c.name)) + '"><div class="name">' + auEsc(auClean(r.c.name)) + (r.direct.length > 1 ? ' <span class="au-cnt">×' + r.direct.length + '</span>' : '') + (r.variants && r.variants.size > 1 ? ' <span class="au-cnt">(' + r.variants.size + ' variants)</span>' : '') + '</div>' +
+        '<div class="sub">' + (r.sev === 'component' && first.componentName ? 'built into ' + auEsc(auClean(first.componentName)) + ' · ' : '') + auEsc(r.c.detectedBy.join(' · ')) + (r.c.replacement ? ' · replace with: ' + auEsc(r.c.replacement) : '') + (r.c.libraryName ? ' · ' + auEsc(r.c.libraryName) : '') + '</div></div>' +
+        locCell(first) + locBtn(first.nodeId) + '</div>';
+      if (r.direct.length > 1) {
+        h += '<div class="au-sub-rows">' + r.direct.map(i => '<div class="au-tr"><span class="lbl">instance</span><div class="au-cell"><div>' + auEsc(i.layerName) + '</div></div>' + locCell(i) + locBtn(i.nodeId) + '</div>').join('') + '</div>';
+      }
+    });
+    h += '</div>';
+  }
+
+  const inhRows = []; m.rows.forEach(r => r.nested.forEach(i => inhRows.push({ c: r.c, i })));
+  if (inhRows.length) {
+    const nNest = inhRows.filter(x => x.i.reason === 'nested').length, nGrave = inhRows.length - nNest;
+    const parts = [];
+    if (nNest) parts.push(nNest.toLocaleString() + ' nested inside another component');
+    if (nGrave) parts.push(nGrave.toLocaleString() + ' on a Graveyard page');
+    h += '<div class="au-tbl"><details class="au-details"><summary><svg class="ic chev"><use href="#au-i-chev"/></svg><span>Info only \u00b7 ' + inhRows.length.toLocaleString() + ' instance' + (inhRows.length === 1 ? '' : 's') + ' you cannot fix from here <span class="au-pill" style="margin-left:8px;color:#7b5cd6;cursor:default">' + ic('info') + parts.join(' \u00b7 ') + '</span></span><span class="au-hint">not counted as issues</span></summary>' +
+      '<div class="note"><b>Nested inside another component:</b> the instance lives inside a component someone else built (for example a Tooltip inside an Account Card). Figma will not let you swap it here \u2014 it is fixed once, in the library, and every copy is fixed with it. That is why one library fix can clear thousands of rows.<br><b>On a Graveyard page:</b> retired material using other retired material. Expected, and safe to ignore.</div>' +
+      '<div class="au-tr th"><span>Reason</span><span>Component</span><span>Inside</span><span></span></div>' +
+      inhRows.slice(0, 200).map(x => '<div class="au-tr"><span class="au-badge inh">' + (x.i.reason === 'graveyard' ? 'Graveyard' : 'Nested') + '</span><div class="au-cell" title="' + auEsc(auClean(x.c.name)) + '"><div class="name">' + auEsc(auClean(x.c.name)) + '</div><div class="sub">' + auEsc(x.c.status) + ' \u00b7 ' + auEsc(x.c.detectedBy.join(' \u00b7 ')) + '</div></div><div class="au-cell"><div>' + auEsc(auClean(x.i.nestedIn || x.i.layerName)) + '</div><div class="sub">' + ic('file') + auEsc(auClean(x.i.pageName)) + ' \u203a ' + auEsc(auClean(x.i.path.join(' / '))) + '</div></div>' + locBtn(x.i.nodeId) + '</div>').join('') +
+      (inhRows.length > 200 ? '<div class="au-empty">Showing the first 200. The full list is in the CSV and JSON exports.</div>' : '') +
+      '</details></div>';
+  }
+
+  h += '<div class="au-foot"><button class="au-btn" id="au-copy-csv" type="button">' + ic('csv') + 'Copy CSV</button>' +
+    '<button class="au-btn primary au-tip" id="au-make-doc" type="button" data-tip="Builds a formatted report on the canvas, next to your current content: summary, issues by page, the full table and what each status means. This is the only part of the audit that creates anything in your file.">' + ic('doc') + 'Create report in Figma</button></div>';
+  auEl('au-results').innerHTML = h;
+
+  auEl('au-chips').onclick = e => { const c = e.target.closest('.au-chip'); if (c) { auditFilter = c.dataset.f; auditRender(); } };
+  const rb = auEl('au-btn-rescan-banner'); if (rb) rb.onclick = auditStart;
+  const nb = auEl('au-noaccess-list');
+  if (nb) nb.onclick = () => auModal('Components in a library this token cannot open',
+    'They exist and work, so they are not broken. What could not be checked is whether they have been retired. Share this list when asking for read access to that library.',
+    auditLast.noAccessNames || [], auditLast.noAccessCount);
+  const pb2 = auEl('au-private-list');
+  if (pb2) pb2.onclick = () => auModal('Private components (skipped, and not a problem)',
+    'Their names start with a dot or an underscore, which in Figma means private: they are never published to a library, they only exist inside published components. Nothing can be checked about them through the library API, and nothing needs to be — they count as correctly linked and do not affect the health score.',
+    auditLast.privateHelperNames || [], auditLast.privateHelpers);
+  const ub = auEl('au-unchecked-list');
+  if (ub) ub.onclick = () => auModal('Components that could not be checked',
+    'Each one says why below. They are left out of the results rather than guessed at, so none of them is being reported as broken. Components from third-party or community kits (Material, Android, iOS) commonly land here, and that is harmless: they are not part of your design system.',
+    auditLast.unverifiedItems || auditLast.unverifiedNames || [], auditLast.unverifiedCount);
+  auEl('au-results').querySelectorAll('.au-tr.row').forEach(r => { r.onclick = e => { if (e.target.closest('[data-locate]')) return; r.classList.toggle('open'); }; });
+  auEl('au-results').querySelectorAll('[data-locate]').forEach(b => { b.onclick = e => { e.stopPropagation(); parent.postMessage({ pluginMessage: { type: 'audit-locate', nodeId: b.dataset.locate } }, '*'); }; });
+  auEl('au-copy-csv').onclick = () => auCopy(auditCsv(), 'Copied audit CSV');
+  auEl('au-make-doc').onclick = () => {
+    const b = auEl('au-make-doc');
+    b.disabled = true; b.textContent = 'Building\u2026';
+    parent.postMessage({ pluginMessage: { type: 'audit-generate-doc', payload: auditReportPayload() } }, '*');
+  };
+}
+
+// Everything the canvas report needs, taken from the model the panel is showing,
+// so the frame on canvas always matches the screen.
+function auditReportPayload() {
+  const p = auditLast, m = auditModel(p);
+  const rows = m.rows.filter(r => r.direct.length).map(r => {
+    const f = r.direct[0];
+    return {
+      status: r.c.status, sev: r.sev, builtInto: auClean(f.componentName || ''), name: auClean(r.c.name), count: r.direct.length,
+      detectedBy: (r.c.detectedBy || []).join(' \u00b7 '), replacement: r.c.replacement || '',
+      library: r.c.libraryName || '', page: auClean(f.pageName),
+      frame: auClean(f.path.length ? f.path[f.path.length - 1] : f.layerName),
+      path: auClean(f.path.slice(0, -1).join(' / ')),
+    };
+  });
+  let nested = 0, graveyard = 0;
+  m.rows.forEach(r => r.nested.forEach(i => { if (i.reason === 'graveyard') graveyard++; else nested++; }));
+  return {
+    fileName: auClean(p.fileName), scope: p.scope, pages: p.pages, instancesScanned: p.instancesScanned,
+    libraries: (p.libraries || []).map(auClean),
+    counts: { linked: m.linked, broken: m.broken, inComp: m.inComp, inDesign: m.inDesign, info: m.info },
+    health: 100 * m.linked / Math.max(1, p.instancesScanned),
+    componentsTotal: p.componentsTotal || p.components.length,
+    componentsAffected: m.rows.filter(r => r.direct.length).length,
+    issueCount: m.broken + m.inComp + m.inDesign,
+    byPage: Object.keys(m.byPage).map(k => [auClean(k), m.byPage[k]]).sort((a, b) => b[1] - a[1]).slice(0, 10),
+    rows, info: { nested, graveyard },
+    privateHelpers: p.privateHelpers || 0, privateHelperInstances: p.privateHelperInstances || 0,
+  };
+}
+
+// Simple list modal — used by the banners to show which components they mean
+function auModal(title, note, items, total) {
+  auEl('au-modal-title').textContent = title;
+  auEl('au-modal-note').textContent = note;
+  const row = (it, i) => {
+    const name = typeof it === 'string' ? it : it.name;
+    const why = typeof it === 'string' ? '' : it.why;
+    return '<div class="au-modal-row"><span class="n">' + (i + 1) + '</span><span>' + auEsc(name)
+      + (why ? '<div class="au-modal-why">' + auEsc(why) + '</div>' : '') + '</span></div>';
+  };
+  auEl('au-modal-body').innerHTML = items.length
+    ? items.map(row).join('')
+    : '<div class="au-empty">Nothing to list.</div>';
+  const shown = items.length, all = total || shown;
+  auEl('au-modal-count').textContent = shown < all ? 'Showing ' + shown + ' of ' + all : shown + ' component' + (shown === 1 ? '' : 's');
+  auEl('au-modal-overlay').classList.add('show');
+  auEl('au-modal-copy').onclick = () => auCopy(items.map(i => typeof i === 'string' ? i : i.name + '  \u2014  ' + i.why).join('\n'), 'Copied ' + shown + ' names');
+}
+function auModalClose() { auEl('au-modal-overlay').classList.remove('show'); }
+auEl('au-modal-close').onclick = auModalClose;
+auEl('au-modal-overlay').onclick = e => { if (e.target === auEl('au-modal-overlay')) auModalClose(); };
+
+// ── Naming bar ──
+function auNamingApplicable() {
+  return currentSection === 'variables' && (currentFormat === 'css' || currentFormat === 'dtcg');
+}
+function auNamingRefresh(save) {
+  const bar = document.getElementById('naming-bar');
+  bar.classList.toggle('show', auNamingApplicable());
+  if (!auNamingApplicable()) { document.getElementById('naming-cols').classList.remove('show'); document.getElementById('nb-more').classList.remove('on'); return; }
+  // Live example built from the first token actually being exported
+  let ex = '';
+  try {
+    const cols = getFilteredVariables();
+    const c = cols.find(x => x.variables && x.variables.length);
+    if (c) {
+      const namer = auColNamer(cols);
+      ex = currentFormat === 'css'
+        ? '--' + auCssSlug(c, c.variables[0].name, namer)
+        : auTokenSegments(c, c.variables[0].name, namer).join('.');
+    }
+  } catch (e) {}
+  document.getElementById('nb-example').textContent = ex;
+  if (save) parent.postMessage({ pluginMessage: { type: 'naming-save', payload: auNameOpts } }, '*');
+}
+function auNamingRenderCols() {
+  const wrap = document.getElementById('nc-rows');
+  const cols = getFilteredVariables();
+  if (!cols.length) { wrap.innerHTML = '<div class="nc-hint">No collections selected.</div>'; return; }
+  const namer = auColNamer(cols);
+  wrap.innerHTML = cols.map(c => {
+    const key = namer(c);
+    const val = (auNameOpts.aliases && auNameOpts.aliases[key]) || '';
+    const first = c.variables && c.variables[0];
+    const ex = first ? (currentFormat === 'css' ? '--' + auCssSlug(c, first.name, namer) : auTokenSegments(c, first.name, namer).join('.')) : '';
+    return '<div class="nc-row"><span class="nc-name">' + esc(c.name)
+      + (c.source === 'global-library' ? ' <small>global</small>' : '')
+      + '</span><input type="text" data-col="' + esc(key) + '" value="' + esc(val) + '" placeholder="' + esc(key) + '" autocomplete="off">'
+      + '<span class="nc-ex">' + esc(ex) + '</span></div>';
+  }).join('');
+  wrap.querySelectorAll('input[data-col]').forEach(inp => {
+    inp.oninput = () => {
+      auNameOpts.aliases = auNameOpts.aliases || {};
+      const v = inp.value.trim();
+      if (v) auNameOpts.aliases[inp.dataset.col] = v; else delete auNameOpts.aliases[inp.dataset.col];
+      auNamingRefresh(true); auNamingRenderCols(); updateOutput();
+    };
+  });
+}
+document.getElementById('nb-more').onclick = () => {
+  const panel = document.getElementById('naming-cols');
+  const on = panel.classList.toggle('show');
+  document.getElementById('nb-more').classList.toggle('on', on);
+  if (on) auNamingRenderCols();
+};
+
+function auNamingChanged() {
+  auNameOpts.collection = document.getElementById('nb-collection').checked;
+  auNameOpts.dedupe = document.getElementById('nb-dedupe').checked;
+  auNameOpts.prefix = document.getElementById('nb-prefix').value.trim();
+  auNamingRefresh(true);
+  if (document.getElementById('naming-cols').classList.contains('show')) auNamingRenderCols();
+  updateOutput();
+}
+document.getElementById('nb-collection').onchange = auNamingChanged;
+document.getElementById('nb-dedupe').onchange = auNamingChanged;
+document.getElementById('nb-prefix').oninput = auNamingChanged;
+parent.postMessage({ pluginMessage: { type: 'naming-get' } }, '*');
+
+// ── Export ──
+function auditExport() {
+  const p = auditLast; const issues = [];
+  p.components.forEach(c => {
+    if (c.status !== 'deprecated' && c.status !== 'missing') return;
+    c.instances.forEach(i => issues.push({
+      component: auClean(c.name), instanceLayer: i.layerName, page: auClean(i.pageName), layerPath: i.path.join(' / '),
+      issueType: c.status === 'missing' ? 'Broken link — component no longer exists' : (i.inComponent ? 'Retired component built into a live component' : 'Retired component used in a design'),
+      severity: c.status === 'missing' ? 'Broken' : (i.inComponent ? 'In component' : 'In design'),
+      builtInto: i.componentName || '',
+      status: (i.nested || AU_GRAVE_RE.test(i.pageName || '')) ? 'Info only (' + c.status + (i.nested ? ', nested' : ', graveyard page') + ')' : (c.status === 'deprecated' ? 'Deprecated' : 'Missing'),
+      detectedBy: c.detectedBy.join(' · '), expectedReplacement: c.replacement || '',
+      library: c.libraryName || (c.remote ? '' : 'local'), nodeId: i.nodeId,
+      link: p.fileKey ? 'https://www.figma.com/design/' + p.fileKey + '?node-id=' + i.nodeId.replace(':', '-') : '',
+    }));
+  });
+  return { file: p.fileName, scannedAt: new Date().toISOString(), scope: p.scope, instancesScanned: p.instancesScanned, components: p.components.length, libraries: p.libraries || [], issues };
+}
+function auditCsv() {
+  const rows = auditExport().issues;
+  const cols = ['severity', 'component', 'builtInto', 'instanceLayer', 'page', 'layerPath', 'issueType', 'status', 'detectedBy', 'expectedReplacement', 'library', 'nodeId', 'link'];
+  const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  return [cols.join(',')].concat(rows.map(r => cols.map(c => q(r[c])).join(','))).join('\n');
+}
+function auCopy(text, msg) {
+  const fb = () => { const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.focus(); ta.select(); try { document.execCommand('copy'); } catch (e) {} document.body.removeChild(ta); showToast(msg); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(() => showToast(msg)).catch(fb); else fb();
+}
+function auDownload(text, name, mime) {
+  const blob = new Blob([text], { type: mime }); const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = name; a.click(); URL.revokeObjectURL(url);
+  showToast('Downloaded ' + name);
+}
 
 </script>
 </body>

@@ -3,7 +3,7 @@
 // Extracts Variables (all Collections, all Modes, resolved values)
 // Supports live SYNC + multi-format output (JSON, CSS, Flutter, W3C DTCG)
 
-figma.showUI(__html__, { width: 640, height: 760, themeColors: true });
+figma.showUI(__html__, { width: 900, height: 860, themeColors: true });
 
 // ─── Colour Helpers ───
 
@@ -110,6 +110,7 @@ function extractAllStyles() {
     // Resolve bound variable values for ALL modes of their collection
     var boundVarModes = {};
     var boundVarModeNames = null; // modes from the first bound variable's collection
+    var boundVarValues = {}; // props bound to single-mode collections: one resolved raw value
     if (s.boundVariables) {
       var bvKeys = Object.keys(s.boundVariables);
       for (var bk = 0; bk < bvKeys.length; bk++) {
@@ -128,10 +129,14 @@ function extractAllStyles() {
                   var mode = col.modes[mi];
                   var resolved = resolveVariableValue(bVar, mode.modeId, mode.name);
                   if (resolved) {
-                    // Unwrap alias to get the final value
-                    if (resolved.type === 'alias' && resolved.resolvedValue) {
-                      boundVarModes[prop][mode.name] = resolved.resolvedValue;
-                    } else if (resolved.type !== 'alias') {
+                    // Preserve alias chain so docs can show alias name (matches Figma's responsive collection view)
+                    if (resolved.type === 'alias') {
+                      boundVarModes[prop][mode.name] = {
+                        type: 'alias',
+                        aliasName: resolved.aliasName,
+                        resolvedValue: resolved.resolvedValue,
+                      };
+                    } else {
                       boundVarModes[prop][mode.name] = resolved;
                     }
                   }
@@ -140,6 +145,12 @@ function extractAllStyles() {
                 if (!boundVarModeNames) {
                   boundVarModeNames = col.modes.map(function(m) { return m.name; });
                 }
+              } else if (col && col.modes.length === 1) {
+                // Single-mode collection (e.g. a primitives library) — resolve its
+                // only mode so docs can show the raw value under the token name
+                var onlyMode = col.modes[0];
+                var resolvedSingle = resolveVariableValue(bVar, onlyMode.modeId, onlyMode.name);
+                if (resolvedSingle) boundVarValues[prop] = resolvedSingle;
               }
             }
           } catch (e) {}
@@ -164,6 +175,10 @@ function extractAllStyles() {
     if (Object.keys(boundVarModes).length > 0) {
       textStyleEntry.boundVarModes = boundVarModes;
       if (boundVarModeNames) textStyleEntry.modeNames = boundVarModeNames;
+    }
+    // Include resolved values for props bound to single-mode collections
+    if (Object.keys(boundVarValues).length > 0) {
+      textStyleEntry.boundVarValues = boundVarValues;
     }
     result.textStyles.push(textStyleEntry);
   }
@@ -371,16 +386,286 @@ function extractAllVariables() {
   return result;
 }
 
+// ─── Global / Library Variable Discovery ──────────────────────────────
+// Additive layer: the local export above (extractAllVariables) is unchanged
+// and still LOCAL-ONLY. This layer pulls the entire GLOBAL library catalogue
+// (every collection/variable published by the libraries enabled in this file —
+// used or not) via the Team Library API, so globals that components wire to
+// directly — with no local intermediary — are recognised on export. Each item
+// is tagged source:"global-library" + libraryName and grouped by collection so
+// the UI and the git export can mark what comes from Global. Fully wrapped in
+// try/catch so a failure here can never break the existing local export.
+// ===== REMOTE-VARS-BEGIN (testable region — keep self-contained) =====
+
+// Per-run caches so alias chains don't re-fetch the same primitives/collections
+// (a global responsive token can alias-resolve through dozens of shared
+// primitives). Reset at the start of extractLibraryVariables.
+var _rvVarCache = {};
+var _rvColCache = {};
+async function _rvGetVar(id) {
+  if (Object.prototype.hasOwnProperty.call(_rvVarCache, id)) return _rvVarCache[id];
+  var v = null;
+  try { v = await figma.variables.getVariableByIdAsync(id); } catch (e) { v = null; }
+  _rvVarCache[id] = v;
+  return v;
+}
+async function _rvGetCol(id) {
+  if (Object.prototype.hasOwnProperty.call(_rvColCache, id)) return _rvColCache[id];
+  var c = null;
+  try { c = await figma.variables.getVariableCollectionByIdAsync(id); } catch (e) { c = null; }
+  _rvColCache[id] = c;
+  return c;
+}
+
+// Async, remote-aware mirror of resolveAliasChain (uses *Async lookups so
+// it can follow alias chains that live in remote/library collections).
+async function resolveAliasChainAsync(aliasVar, modeName, depth) {
+  if (!depth) depth = 0;
+  if (depth > 10) return null;
+
+  var col = await _rvGetCol(aliasVar.variableCollectionId);
+  if (!col) return null;
+
+  var modeId = col.defaultModeId;
+  for (var m = 0; m < col.modes.length; m++) {
+    if (col.modes[m].name === modeName) { modeId = col.modes[m].modeId; break; }
+  }
+
+  var value = aliasVar.valuesByMode[modeId];
+  if (value === undefined || value === null) return null;
+
+  if (typeof value === "object" && value.type === "VARIABLE_ALIAS") {
+    var next = await _rvGetVar(value.id);
+    if (next) return await resolveAliasChainAsync(next, modeName, depth + 1);
+    return null;
+  }
+
+  if (aliasVar.resolvedType === "COLOR" && typeof value === "object") {
+    return {
+      type: "color",
+      hex: rgbToHex(value.r, value.g, value.b),
+      r: Math.round(value.r * 255),
+      g: Math.round(value.g * 255),
+      b: Math.round(value.b * 255),
+      a: value.a !== undefined ? +value.a.toFixed(4) : 1,
+    };
+  }
+  if (aliasVar.resolvedType === "FLOAT") return { type: "number", value: value };
+  if (aliasVar.resolvedType === "STRING") return { type: "string", value: value };
+  if (aliasVar.resolvedType === "BOOLEAN") return { type: "boolean", value: value };
+  return null;
+}
+
+// Async, remote-aware mirror of resolveVariableValue.
+async function resolveVariableValueAsync(variable, modeId, modeName) {
+  var value = variable.valuesByMode[modeId];
+  if (value === undefined || value === null) return null;
+
+  if (typeof value === "object" && value.type === "VARIABLE_ALIAS") {
+    var aliasVar = await _rvGetVar(value.id);
+    if (aliasVar) {
+      var resolved = modeName ? await resolveAliasChainAsync(aliasVar, modeName, 0) : null;
+      return { type: "alias", aliasName: aliasVar.name, aliasId: aliasVar.id, resolvedValue: resolved };
+    }
+    return { type: "alias", aliasName: "unresolved", aliasId: value.id };
+  }
+
+  if (variable.resolvedType === "COLOR" && typeof value === "object") {
+    return {
+      type: "color",
+      hex: rgbToHex(value.r, value.g, value.b),
+      r: Math.round(value.r * 255),
+      g: Math.round(value.g * 255),
+      b: Math.round(value.b * 255),
+      a: value.a !== undefined ? +value.a.toFixed(4) : 1,
+    };
+  }
+  if (variable.resolvedType === "FLOAT") return { type: "number", value: value };
+  if (variable.resolvedType === "STRING") return { type: "string", value: value };
+  if (variable.resolvedType === "BOOLEAN") return { type: "boolean", value: value };
+  return { type: "unknown", value: String(value) };
+}
+
+// Import a list of library variable keys, in parallel batches. Sequential
+// importVariableByKeyAsync is ~165ms/var (≈90s for 537 globals); batches of 25
+// overlap the round-trips and bring the same set down to ≈8s. Returns an array
+// of { variable, libraryName } for everything that imported successfully.
+async function importLibraryVariablesParallel(entries, batchSize) {
+  if (!batchSize) batchSize = 25;
+  var imported = [];
+  for (var b = 0; b < entries.length; b += batchSize) {
+    var slice = entries.slice(b, b + batchSize);
+    var results = await Promise.all(slice.map(function (en) {
+      return figma.variables.importVariableByKeyAsync(en.key)
+        .then(function (v) { return v ? { variable: v, libraryName: en.libraryName } : null; })
+        .catch(function () { return null; });
+    }));
+    for (var ri = 0; ri < results.length; ri++) {
+      if (results[ri]) imported.push(results[ri]);
+    }
+  }
+  return imported;
+}
+
+// Orchestrator: pull the entire GLOBAL library catalogue via the Team Library
+// API (no node traversal — that timed out at >30s on this 81-page file). Lists
+// every collection/variable published by the libraries ENABLED in this file,
+// imports each (in parallel) to read full values/modes/alias chains, and groups
+// them by collection. Collections published by THIS file are skipped — they are
+// already covered by the local export (extractAllVariables). Every returned
+// collection and variable is tagged source:"global-library" + libraryName so
+// the UI and the Bitbucket/GitHub export can clearly mark what comes from Global.
+async function extractLibraryVariables() {
+  if (!figma.teamLibrary || !figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync) return [];
+  if (!figma.variables || !figma.variables.importVariableByKeyAsync) return [];
+
+  // Reset per-run alias caches
+  _rvVarCache = {};
+  _rvColCache = {};
+
+  var libCols;
+  try { libCols = await figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync(); } catch (e) { return []; }
+  if (!libCols || !libCols.length) return [];
+
+  var selfName = (figma.root && figma.root.name) || "";
+
+  // Enumerate every variable key in EXTERNAL libraries only (skip this file's
+  // own published collections — they duplicate the local export).
+  var entries = [];
+  for (var ci = 0; ci < libCols.length; ci++) {
+    var lc = libCols[ci];
+    if (lc.libraryName === selfName) continue;
+    var libVars = [];
+    try { libVars = await figma.teamLibrary.getVariablesInLibraryCollectionAsync(lc.key); } catch (e) { libVars = []; }
+    for (var vi = 0; vi < libVars.length; vi++) {
+      entries.push({ key: libVars[vi].key, libraryName: lc.libraryName });
+    }
+  }
+  if (!entries.length) return [];
+
+  // Safety cap (logged, never silent) so a pathologically large library can't hang the export.
+  var MAX = 4000;
+  if (entries.length > MAX) {
+    console.warn("[LibraryVars] " + entries.length + " library variables; importing first " + MAX + " (cap). Some globals omitted.");
+    entries = entries.slice(0, MAX);
+  }
+
+  var imported = await importLibraryVariablesParallel(entries, 25);
+
+  // Every imported variable is already in hand: seed the cache so alias chains
+  // resolve from memory instead of making another API round-trip per hop.
+  for (var pc = 0; pc < imported.length; pc++) {
+    var pv = imported[pc].variable;
+    if (pv && pv.id) _rvVarCache[pv.id] = pv;
+  }
+
+  // Group by the imported variable's real (library) collection
+  var byCollection = {};
+  var order = [];
+  for (var iv = 0; iv < imported.length; iv++) {
+    var v = imported[iv].variable;
+    var col = await _rvGetCol(v.variableCollectionId);
+    if (!col) continue;
+    if (!byCollection[col.id]) {
+      byCollection[col.id] = { collection: col, libraryName: imported[iv].libraryName || "", vars: [] };
+      order.push(col.id);
+    }
+    byCollection[col.id].vars.push(v);
+  }
+
+  var out = [];
+  for (var o = 0; o < order.length; o++) {
+    var bucket = byCollection[order[o]];
+    var bcol = bucket.collection;
+    // Resolving one variable-and-mode at a time was the bottleneck: a library of a
+    // few thousand variables across four modes meant thousands of sequential awaits,
+    // which is what made the plugin take minutes to open. Resolve in chunks instead.
+    var variables = [];
+    var CHUNK = 40;
+    for (var x = 0; x < bucket.vars.length; x += CHUNK) {
+      var slice = bucket.vars.slice(x, x + CHUNK);
+      var resolved = await Promise.all(slice.map(function (bv) {
+        var valuesByMode = {};
+        return Promise.all(bcol.modes.map(function (m) {
+          return resolveVariableValueAsync(bv, m.modeId, m.name).then(function (val) { valuesByMode[m.name] = val; });
+        })).then(function () {
+          return {
+            id: bv.id,
+            name: bv.name,
+            resolvedType: bv.resolvedType,
+            description: bv.description || "",
+            scopes: bv.scopes || [],
+            codeSyntax: bv.codeSyntax || {},
+            valuesByMode: valuesByMode,
+            remote: true,
+            source: "global-library",
+            libraryName: bucket.libraryName,
+          };
+        });
+      }));
+      for (var rr = 0; rr < resolved.length; rr++) variables.push(resolved[rr]);
+    }
+    out.push({
+      id: bcol.id,
+      name: bcol.name,
+      remote: true,
+      source: "global-library",
+      libraryName: bucket.libraryName,
+      modes: bcol.modes.map(function (m) { return { id: m.modeId, name: m.name }; }),
+      variableCount: variables.length,
+      variables: variables,
+    });
+  }
+  return out;
+}
+// ===== REMOTE-VARS-END =====
+
 // ─── Send data to UI ───
 
-function sendAllData() {
+async function sendAllData() {
   const styles = extractAllStyles();
   const variables = extractAllVariables();
 
+  // Send the local data straight away. The global library can take a while on a
+  // big design system, and there is no reason to keep the whole panel blank
+  // while it loads — it arrives as a second update.
   figma.ui.postMessage({
     type: "all-data",
     payload: { styles, variables },
+    globalsPending: true,
   });
+
+  // Additive: pull the full GLOBAL library catalogue and append it, clearly
+  // tagged (source:"global-library" + libraryName) and grouped by collection.
+  try {
+    var hasTeamLib = !!(figma.teamLibrary && figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync);
+    var globalCollections = await extractLibraryVariables();
+    if (globalCollections && globalCollections.length && variables.collections) {
+      for (var rc = 0; rc < globalCollections.length; rc++) {
+        variables.collections.push(globalCollections[rc]);
+      }
+      var gVars = globalCollections.reduce(function (n, col) { return n + col.variables.length; }, 0);
+      if (variables._meta) {
+        variables._meta.totalCollections = variables.collections.length;
+        var tv = 0;
+        for (var c = 0; c < variables.collections.length; c++) tv += variables.collections[c].variables.length;
+        variables._meta.totalVariables = tv;
+        variables._meta.globalCollections = globalCollections.length;
+        variables._meta.globalVariables = gVars;
+      }
+      figma.ui.postMessage({
+        type: "all-data",
+        payload: { styles, variables },
+        globalsPending: false,
+        globalsLoaded: { collections: globalCollections.length, variables: gVars },
+      });
+    } else {
+      figma.ui.postMessage({ type: "globals-done", ok: false, reason: hasTeamLib ? "no external library" : "teamLibrary unavailable" });
+    }
+  } catch (e) {
+    console.error("[GlobalVars] library import failed (local export unaffected):", e);
+    figma.ui.postMessage({ type: "globals-done", ok: false, reason: (e && e.message) || String(e) });
+  }
 }
 
 // ─── Documentation Generator ───
@@ -394,6 +679,21 @@ const DC = {
   badgeBg:   { r: 0.945, g: 0.941, b: 0.933 },
   badgeTxt:  { r: 0.278, g: 0.333, b: 0.412 },
   divider:   { r: 0.886, g: 0.910, b: 0.941 },
+  rawValue:  { r: 0.761, g: 0.094, b: 0.357 }, // #C2185B — 5.9:1 on white, WCAG AA at 16px
+  rawChipBg: { r: 0.988, g: 0.906, b: 0.937 }, // #FCE7EF — with #C2185B text: 5.0:1, WCAG AA at 16px
+  descBg:    { r: 0.910, g: 0.945, b: 0.984 }, // #E8F1FB — with DC.text: 12.8:1, WCAG AAA at 16px
+  // Audit statuses — all verified at 16px: amber+near-black 8.1:1 (AAA),
+  // red/green/purple with white text 5.0:1, 5.4:1 and 5.7:1 (AA)
+  auOk:      { r: 0.082, g: 0.478, b: 0.267 }, // #157A44
+  auDep:     { r: 0.878, g: 0.659, b: 0.000 }, // #E0A800
+  auDepTxt:  { r: 0.102, g: 0.102, b: 0.102 }, // #1A1A1A on amber
+  auMiss:    { r: 0.769, g: 0.204, b: 0.106 }, // #C4341B
+  auInfo:    { r: 0.420, g: 0.310, b: 0.839 }, // #6B4FD6
+  auComp:    { r: 0.639, g: 0.310, b: 0.000 }, // #A34F00 — white text 5.7:1 (AA)
+  // Health score on the dark header (#1E293B): 7.8:1, 8.2:1 and 5.7:1 — AAA, AAA, AA
+  hpGood:    { r: 0.310, g: 0.831, b: 0.541 }, // #4FD48A
+  hpWarn:    { r: 0.949, g: 0.722, b: 0.294 }, // #F2B84B
+  hpBad:     { r: 1.000, g: 0.478, b: 0.361 }, // #FF7A5C
 };
 
 const _lf = new Set();
@@ -577,6 +877,38 @@ async function dBadge(label, bg, fg) {
   return b;
 }
 
+// Format a resolved variable value (from resolveVariableValue/resolveAliasChain)
+// into a short display string. Follows alias wrappers down to the concrete value.
+function formatRawValue(rv) {
+  if (!rv) return null;
+  if (rv.type === "alias") return formatRawValue(rv.resolvedValue);
+  if (rv.type === "number") return String(Math.round(rv.value * 1000) / 1000);
+  if (rv.type === "string") return rv.value;
+  if (rv.type === "boolean") return rv.value ? "true" : "false";
+  if (rv.type === "color") return (rv.hex || "") + (rv.a != null && rv.a < 1 ? " " + Math.round(rv.a * 100) + "%" : "");
+  return null;
+}
+
+// Small discreet chip for raw values (pink tint, WCAG AA at 16px)
+async function dRawChip(label) {
+  var chip = await dBadge(label, DC.rawChipBg, DC.rawValue);
+  chip.paddingLeft = 8; chip.paddingRight = 8; chip.paddingTop = 3; chip.paddingBottom = 3;
+  return chip;
+}
+
+// Style description callout — light blue block with a left accent bar so the
+// description stands out from the token/badge noise around it (12.8:1, AAA)
+async function dDescCallout(text) {
+  var d = df("Description Note", "HORIZONTAL", 0);
+  d.paddingLeft = 14; d.paddingRight = 14; d.paddingTop = 10; d.paddingBottom = 10;
+  d.cornerRadius = 6;
+  d.fills = [{ type: "SOLID", color: DC.descBg }];
+  d.strokes = [{ type: "SOLID", color: DC.headerBg }];
+  d.strokeLeftWeight = 3; d.strokeTopWeight = 0; d.strokeRightWeight = 0; d.strokeBottomWeight = 0;
+  ac(d, await dt(text, DC.MIN, "Regular", DC.text), "FILL", "HUG");
+  return d;
+}
+
 // ─── Divider ───
 function dDiv(parent) {
   const w = df("Divider", "VERTICAL", 0);
@@ -705,12 +1037,12 @@ async function dTextRow(parent, style) {
   ac(row, exCol, "FIXED", "HUG", DC.EX);
 
   // Description column — FILL width, HUG height
-  var descCol = df("Description", "VERTICAL", 8);
+  var descCol = df("Description", "VERTICAL", 14);
   var nameParts = style.name.split("/");
   var shortName = nameParts.length > 1 ? nameParts.slice(1).join(" / ") : nameParts[0];
   ac(descCol, await dt(shortName, DC.MIN, "Semi Bold", DC.text), "FILL", "HUG");
   if (style.description) {
-    ac(descCol, await dt(style.description, DC.MIN, "Regular", DC.textSec), "FILL", "HUG");
+    ac(descCol, await dDescCallout(style.description), "FILL", "HUG");
   }
 
   // Property badges — FILL width, WRAP
@@ -723,12 +1055,129 @@ async function dTextRow(parent, style) {
     await addB(bv.lineHeight ? "$" + bv.lineHeight : "$line-height-" + Math.round(style.lineHeight.value));
   }
   await addB(bv.fontFamily ? "$" + bv.fontFamily : "$font-family-" + style.fontFamily.toLowerCase().replace(/\s+/g, "-"));
-  await addB(bv.fontStyle ? "$" + bv.fontStyle : "$font-weight-" + style.fontStyle.toLowerCase().replace(/\s+/g, "-"));
+  var weightBv = bv.fontStyle || bv.fontWeight; // weight can be bound under either key
+  await addB(weightBv ? "$" + weightBv : "$font-weight-" + style.fontStyle.toLowerCase().replace(/\s+/g, "-"));
   if (style.letterSpacing) {
     var ls = style.letterSpacing.value;
     await addB(bv.letterSpacing ? "$" + bv.letterSpacing : "$letter-spacing-" + (ls === 0 ? "00" : ls.toFixed(1)));
   }
   ac(descCol, badges, "FILL", "HUG");
+
+  // Responsive modes table — shows EVERY text prop, with per-mode value when bound, or literal otherwise
+  if (style.modeNames && style.modeNames.length > 0) {
+    var rmModes = style.modeNames;
+    var bvModes = style.boundVarModes || {};
+    var bvNames = style.boundVariables || {};
+    var bvValues = style.boundVarValues || {};
+
+    // Build the canonical list of text-style rows
+    var rmRows = [];
+    rmRows.push({ label: "font-size", prop: "fontSize", literal: String(Math.round(style.fontSize * 1000) / 1000) });
+    if (style.lineHeight && style.lineHeight.unit !== "AUTO") {
+      var lhUnit = style.lineHeight.unit === "PERCENT" ? "%" : "px";
+      rmRows.push({ label: "line-height", prop: "lineHeight", literal: String(Math.round(style.lineHeight.value * 1000) / 1000) + lhUnit });
+    }
+    rmRows.push({ label: "font-family", prop: "fontFamily", literal: style.fontFamily });
+    // Weight can be bound under fontStyle (string, "Semi Bold") OR fontWeight (number, 600)
+    rmRows.push({ label: "font-weight", prop: "fontStyle", altProp: "fontWeight", literal: style.fontStyle });
+    if (style.letterSpacing) {
+      var lsUnit = style.letterSpacing.unit === "PERCENT" ? "%" : "px";
+      var lsv = style.letterSpacing.value;
+      rmRows.push({ label: "letter-spacing", prop: "letterSpacing", literal: (lsv === 0 ? "0" : String(Math.round(lsv * 1000) / 1000)) + lsUnit });
+    }
+    if (style.paragraphSpacing && style.paragraphSpacing > 0) {
+      rmRows.push({ label: "paragraph-spacing", prop: "paragraphSpacing", literal: String(style.paragraphSpacing) + "px" });
+    }
+
+    // Only render the table when at least one prop is multi-mode bound
+    var hasMultiMode = false;
+    for (var rmci = 0; rmci < rmRows.length; rmci++) {
+      if (bvModes[rmRows[rmci].prop] || (rmRows[rmci].altProp && bvModes[rmRows[rmci].altProp])) { hasMultiMode = true; break; }
+    }
+
+    if (hasMultiMode) {
+      ac(descCol, await dt("Responsive values", DC.MIN, "Medium", DC.textSec), "FILL", "HUG");
+
+      var rmTable = df("Responsive Table", "VERTICAL", 0);
+      rmTable.cornerRadius = 6;
+      rmTable.strokes = [{ type: "SOLID", color: DC.divider }];
+      rmTable.strokeWeight = 1;
+      rmTable.clipsContent = true;
+
+      // Header row
+      var rmHdr = df("Header", "HORIZONTAL", 0);
+      rmHdr.fills = [{ type: "SOLID", color: DC.badgeBg }];
+      var rmH0 = df("Cell", "VERTICAL", 0);
+      rmH0.paddingLeft = 14; rmH0.paddingRight = 14; rmH0.paddingTop = 10; rmH0.paddingBottom = 10;
+      ac(rmH0, await dt("Property", DC.MIN, "Semi Bold", DC.text), "FILL", "HUG");
+      ac(rmHdr, rmH0, "FIXED", "FILL", 160);
+      for (var rmh = 0; rmh < rmModes.length; rmh++) {
+        var rmHc = df("Cell", "VERTICAL", 0);
+        rmHc.paddingLeft = 14; rmHc.paddingRight = 14; rmHc.paddingTop = 10; rmHc.paddingBottom = 10;
+        ac(rmHc, await dt(rmModes[rmh], DC.MIN, "Semi Bold", DC.text), "FILL", "HUG");
+        ac(rmHdr, rmHc, "FILL", "FILL");
+      }
+      ac(rmTable, rmHdr, "FILL", "HUG");
+
+      // Data rows — one per text prop
+      for (var rmri = 0; rmri < rmRows.length; rmri++) {
+        var rmRow = rmRows[rmri];
+        // Use the alternative binding key when the primary one has no data
+        var rmProp = rmRow.prop;
+        if (rmRow.altProp && !bvModes[rmProp] && !bvNames[rmProp] && (bvModes[rmRow.altProp] || bvNames[rmRow.altProp])) {
+          rmProp = rmRow.altProp;
+        }
+        var rmModeMap = bvModes[rmProp];
+        var rmFallback = bvNames[rmProp] ? bvNames[rmProp] : rmRow.literal;
+
+        var rmDivLine = figma.createRectangle();
+        rmDivLine.name = "Divider"; rmDivLine.resize(100, 1);
+        rmDivLine.fills = [{ type: "SOLID", color: DC.divider }];
+        ac(rmTable, rmDivLine, "FILL", "FIXED");
+
+        var rmDataRow = df("Row " + rmRow.label, "HORIZONTAL", 0);
+        rmDataRow.fills = [{ type: "SOLID", color: DC.white }];
+
+        var rmL = df("Cell", "VERTICAL", 0);
+        rmL.paddingLeft = 14; rmL.paddingRight = 14; rmL.paddingTop = 10; rmL.paddingBottom = 10;
+        ac(rmL, await dt(rmRow.label, DC.MIN, "Medium", DC.text), "FILL", "HUG");
+        ac(rmDataRow, rmL, "FIXED", "FILL", 160);
+
+        for (var rmc = 0; rmc < rmModes.length; rmc++) {
+          var rmCell = df("Cell", "VERTICAL", 6);
+          rmCell.paddingLeft = 14; rmCell.paddingRight = 14; rmCell.paddingTop = 10; rmCell.paddingBottom = 10;
+          var rmTxt = rmFallback;
+          var rmRaw = null; // resolved raw value, shown as a chip under the token name
+          if (rmModeMap) {
+            var rmV = rmModeMap[rmModes[rmc]];
+            if (rmV) {
+              if (rmV.type === "alias") {
+                rmTxt = rmV.aliasName || rmFallback;
+                rmRaw = formatRawValue(rmV.resolvedValue);
+              }
+              else if (rmV.type === "color") rmTxt = (rmV.hex || "#000") + (rmV.a != null && rmV.a < 1 ? " " + Math.round(rmV.a * 100) + "%" : "");
+              else if (rmV.type === "number") rmTxt = String(Math.round(rmV.value * 1000) / 1000);
+              else if (rmV.type === "string") rmTxt = rmV.value;
+              else if (rmV.type === "boolean") rmTxt = rmV.value ? "true" : "false";
+            }
+          } else if (bvNames[rmProp] && bvValues[rmProp]) {
+            // Prop bound to a single-mode collection (e.g. a primitive) — the cell
+            // shows the token name, so add its raw value (same across breakpoints)
+            rmRaw = formatRawValue(bvValues[rmProp]);
+          }
+          ac(rmCell, await dt(rmTxt, DC.MIN, "Regular", DC.text), "FILL", "HUG");
+          if (rmRaw != null && rmRaw !== "" && rmRaw !== rmTxt) {
+            ac(rmCell, await dRawChip(rmRaw));
+          }
+          ac(rmDataRow, rmCell, "FILL", "FILL");
+        }
+        ac(rmTable, rmDataRow, "FILL", "HUG");
+      }
+
+      ac(descCol, rmTable, "FILL", "HUG");
+    }
+  }
+
   ac(row, descCol, "FILL", "HUG");
 
   // Token column — HUG width, HUG height
@@ -798,7 +1247,7 @@ async function dPaintRow(parent, style) {
   row.appendChild(sw);
 
   // Description — FILL width
-  var descCol = df("Description", "VERTICAL", 4);
+  var descCol = df("Description", "VERTICAL", 8);
   var nameParts = style.name.split("/");
   var shortName = nameParts.length > 1 ? nameParts.slice(1).join(" / ") : nameParts[0];
   ac(descCol, await dt(shortName, DC.MIN, "Semi Bold", DC.text), "FILL", "HUG");
@@ -830,7 +1279,7 @@ async function dPaintRow(parent, style) {
   }
 
   if (style.description) {
-    ac(descCol, await dt(style.description, DC.MIN, "Regular", DC.textSec), "FILL", "HUG");
+    ac(descCol, await dDescCallout(style.description), "FILL", "HUG");
   }
   ac(row, descCol, "FILL", "HUG");
 
@@ -917,7 +1366,7 @@ async function dEffectRow(parent, style) {
   var shortName = nameParts.length > 1 ? nameParts.slice(1).join(" / ") : nameParts[0];
   ac(descCol, await dt(shortName, DC.MIN, "Semi Bold", DC.text), "FILL", "HUG");
   if (style.description) {
-    ac(descCol, await dt(style.description, DC.MIN, "Regular", DC.textSec), "FILL", "HUG");
+    ac(descCol, await dDescCallout(style.description), "FILL", "HUG");
   }
 
   // One detail block per effect
@@ -1663,14 +2112,638 @@ sendAllData();
 // Detect existing docs on startup
 detectExistingDocs();
 
+// ═══════════════════════════════════════════════════════════════════════
+// ─── Audit: broken links & deprecated components (v1.4.1) ───
+// Read-only. Scans INSTANCE nodes, groups them by main component and flags:
+//   deprecated → the main component lives in a /graveyard/i page, or its
+//                (set) description carries "@deprecated", or its name says
+//                DEPRECATED
+//   missing    → the main component is gone (removed / not found)
+//   library    → remote components are verified by the UI through the Figma
+//                REST API only (published list + Graveyard page per library).
+//                Nothing is imported into the file: importing a component by
+//                key would register "imported components" in the document,
+//                which shows up as a change in version history — so it is NOT done.
+// Performance (v1.4.1): one SYNC mainComponent access per instance, no parent
+// walks during the scan — layer paths and nesting are resolved afterwards and
+// only for instances of flagged components (typically ~1% of the file). OK
+// components travel to the UI as a count, not as thousands of instance rows.
+// Nothing here edits the document — only selection/viewport on "Locate".
+// ═══════════════════════════════════════════════════════════════════════
+var _auditComps = null; // last scan's component records (with light refs) for auditExpand
+var AUDIT_GRAVEYARD_RE = /graveyard/i;
+var AUDIT_TAG_RE = /@deprecated/i;
+var AUDIT_NAME_RE = /\bdeprecated\b/i;
+var _auditRunning = false;
+var _auditCancel = false;
+
+// "@deprecated → use Button/Primary" | "@deprecated -> Button/Primary" |
+// "@deprecated: use X instead" → "Button/Primary"
+function auditParseReplacement(desc) {
+  if (!desc) return "";
+  var lines = String(desc).split(/\r?\n/);
+  for (var i = 0; i < lines.length; i++) {
+    var m = /@deprecated\s*(?:→|->|:|—|–|-)?\s*(?:use\s+)?(.+?)\s*(?:\binstead\b)?\s*\.?\s*$/i.exec(lines[i]);
+    if (m && m[1]) return m[1].trim();
+  }
+  return "";
+}
+
+function auditPageOf(node) {
+  var p = node;
+  try { while (p && p.type !== "PAGE") p = p.parent; } catch (e) { return null; }
+  return p && p.type === "PAGE" ? p : null;
+}
+
+// Ancestor names (page excluded), outermost INSTANCE ancestor and outermost
+// COMPONENT/COMPONENT_SET ancestor, in ONE parent walk.
+// The component ancestor is what separates "someone used a retired component in a
+// design" from "a live, published component is BUILT ON a retired one" — the second
+// propagates to everybody who places that component, so it ranks far higher.
+function auditAncestry(node) {
+  var parts = [], outer = null, comp = null;
+  try {
+    var p = node.parent;
+    while (p && p.type !== "PAGE" && p.type !== "DOCUMENT") {
+      parts.unshift(p.name);
+      if (p.type === "INSTANCE") outer = p;
+      if (p.type === "COMPONENT" || p.type === "COMPONENT_SET") comp = p; // keep the outermost
+      p = p.parent;
+    }
+  } catch (e) {}
+  return { path: parts, outer: outer, comp: comp };
+}
+
+// Sync first (legacy access mode — cheap), async only if the sync getter is unavailable
+async function auditMainOf(inst) {
+  try { return inst.mainComponent; } catch (e) {}
+  try { if (typeof inst.getMainComponentAsync === "function") return await inst.getMainComponentAsync(); } catch (e) {}
+  return null;
+}
+
+// Component record shared by all instances of the same main component
+function auditDescribe(mc, inst) {
+  var rec = {
+    id: "", key: "", name: "", setName: "", variantName: "", remote: false, description: "",
+    localPage: "", libraryName: "", status: "ok", detectedBy: [], replacement: "", published: null,
+    count: 0, refs: [], instances: undefined,
+  };
+  if (!mc) { rec.name = inst.name; rec.status = "missing"; rec.detectedBy.push("main component not found"); return rec; }
+  var removed = false; try { removed = !!mc.removed; } catch (e) { removed = true; }
+  if (removed) { rec.name = inst.name; rec.status = "missing"; rec.detectedBy.push("main component deleted"); return rec; }
+  rec.id = mc.id;
+  try { rec.key = mc.key || ""; } catch (e) {}
+  try { rec.remote = !!mc.remote; } catch (e) {}
+  var set = null;
+  try { set = mc.parent && mc.parent.type === "COMPONENT_SET" ? mc.parent : null; } catch (e) {}
+  rec.setName = set ? set.name : "";
+  rec.variantName = set ? mc.name : "";
+  rec.name = set ? set.name + " / " + mc.name : mc.name;
+  var setDesc = ""; try { setDesc = (set && set.description) || ""; } catch (e) {}
+  var mcDesc = ""; try { mcDesc = mc.description || ""; } catch (e) {}
+  rec.description = (setDesc + "\n" + mcDesc).trim();
+
+  if (!rec.remote) {
+    var pg = auditPageOf(set || mc);
+    rec.localPage = pg ? pg.name : "";
+    if (pg && AUDIT_GRAVEYARD_RE.test(pg.name)) { rec.status = "deprecated"; rec.detectedBy.push("Graveyard page"); }
+  }
+  if (AUDIT_TAG_RE.test(rec.description)) {
+    rec.status = "deprecated"; rec.detectedBy.push("@deprecated tag");
+    rec.replacement = auditParseReplacement(rec.description);
+  }
+  if (AUDIT_NAME_RE.test(rec.name)) { rec.status = "deprecated"; rec.detectedBy.push("name says DEPRECATED"); }
+  return rec;
+}
+
+// Progress with live counters so the UI can show what is happening while it waits
+function auditProgress(stage, current, total, label, comps, scanned) {
+  var keys = Object.keys(comps || {});
+  var issueInstances = 0;
+  for (var i = 0; i < keys.length; i++) {
+    var c = comps[keys[i]];
+    if (c.status === "deprecated" || c.status === "missing") issueInstances += c.count;
+  }
+  figma.ui.postMessage({
+    type: "audit-progress", stage: stage, current: current, total: total, label: label || "",
+    scanned: scanned || 0, components: keys.length, issues: issueInstances,
+  });
+}
+
+function auditYield() { return new Promise(function (r) { setTimeout(r, 0); }); }
+
+// Turn the light refs [id, layerName, pageName] of a flagged component into full rows
+function auditExpandRefs(rec) {
+  var out = [];
+  for (var i = 0; i < rec.refs.length; i++) {
+    var ref = rec.refs[i];
+    var node = null; try { node = figma.getNodeById(ref[0]); } catch (e) {}
+    var anc = node ? auditAncestry(node) : { path: [], outer: null };
+    out.push({ nodeId: ref[0], layerName: ref[1], pageName: ref[2], path: anc.path,
+      nested: !!anc.outer, nestedIn: anc.outer ? anc.outer.name : "",
+      inComponent: !!anc.comp, componentName: anc.comp ? anc.comp.name : "" });
+  }
+  return out;
+}
+
+async function runAudit(scope) {
+  if (_auditRunning) return;
+  _auditRunning = true; _auditCancel = false;
+  var t0 = Date.now();
+  try {
+    var pages = scope === "page" ? [figma.currentPage] : figma.root.children.slice();
+    var comps = {};
+    var scanned = 0;
+
+    for (var pi = 0; pi < pages.length; pi++) {
+      if (_auditCancel) { figma.ui.postMessage({ type: "audit-cancelled" }); return; }
+      var page = pages[pi];
+      var pageName = page.name;
+      auditProgress("scan", pi, pages.length, pageName, comps, scanned);
+      var instances = typeof page.findAllWithCriteria === "function"
+        ? page.findAllWithCriteria({ types: ["INSTANCE"] })
+        : page.findAll(function (n) { return n.type === "INSTANCE"; });
+
+      for (var ii = 0; ii < instances.length; ii++) {
+        var inst = instances[ii];
+        scanned++;
+        var mc = await auditMainOf(inst);
+        var gk = mc ? mc.id : "missing:" + inst.name;
+        var rec = comps[gk];
+        if (!rec) { rec = auditDescribe(mc, inst); comps[gk] = rec; }
+        rec.count++;
+        rec.refs.push([inst.id, inst.name, pageName]);
+        if (scanned % 2000 === 0) {
+          auditProgress("scan", pi, pages.length, pageName, comps, scanned);
+          await auditYield();
+          if (_auditCancel) { figma.ui.postMessage({ type: "audit-cancelled" }); return; }
+        }
+      }
+      await auditYield();
+    }
+    auditProgress("scan", pages.length, pages.length, "", comps, scanned);
+
+    var list = Object.keys(comps).map(function (k) { return comps[k]; });
+    _auditComps = {};
+    for (var li = 0; li < list.length; li++) _auditComps[list[li].id || ("missing:" + list[li].name)] = list[li];
+
+    // Full rows (layer path, nesting) now for locally flagged components; remote ones are
+    // verified by the UI via REST and expanded on request (audit-expand)
+    var payloadList = [];
+    for (var pi2 = 0; pi2 < list.length; pi2++) {
+      var c2 = list[pi2];
+      var copy = {};
+      for (var k2 in c2) if (k2 !== "refs" && k2 !== "instances") copy[k2] = c2[k2];
+      copy.uid = c2.id || ("missing:" + c2.name);
+      if (c2.status !== "ok") copy.instances = auditExpandRefs(c2);
+      payloadList.push(copy);
+    }
+
+    var fileKey = ""; try { fileKey = figma.fileKey || ""; } catch (e) {}
+    figma.ui.postMessage({
+      type: "audit-result",
+      payload: {
+        fileName: figma.root.name, fileKey: fileKey, scope: scope, pages: pages.length,
+        instancesScanned: scanned, components: payloadList, durationMs: Date.now() - t0, scannedAt: new Date().toISOString(),
+      },
+    });
+  } catch (err) {
+    console.error("[Audit] Error:", err);
+    figma.ui.postMessage({ type: "audit-error", message: String((err && err.message) || err) });
+  } finally {
+    _auditRunning = false;
+  }
+}
+
+function auditLocate(nodeId) {
+  var n = null;
+  try { n = figma.getNodeById(nodeId); } catch (e) {}
+  if (!n) { figma.notify("That layer no longer exists"); return; }
+  var pg = auditPageOf(n);
+  if (pg && figma.currentPage !== pg) figma.currentPage = pg;
+  figma.currentPage.selection = [n];
+  figma.viewport.scrollAndZoomIntoView([n]);
+}
+
+// UI asks for full rows of components it flagged after the REST check
+function auditExpand(uids) {
+  var rows = {};
+  if (_auditComps) {
+    for (var i = 0; i < uids.length; i++) {
+      var rec = _auditComps[uids[i]];
+      if (rec && rec.refs) rows[uids[i]] = auditExpandRefs(rec);
+    }
+  }
+  figma.ui.postMessage({ type: "audit-expanded", rows: rows });
+}
+
+// Cheap facts about the file so the UI can warn before a long scan
+function auditFileInfo() {
+  var fileKey = ""; try { fileKey = figma.fileKey || ""; } catch (e) {}
+  var topLevel = 0;
+  try { for (var i = 0; i < figma.root.children.length; i++) topLevel += figma.root.children[i].children.length; } catch (e) {}
+  figma.ui.postMessage({ type: "audit-file-info", payload: { fileName: figma.root.name, fileKey: fileKey, pages: figma.root.children.length, topLevelNodes: topLevel } });
+}
+
+// Last scan per file, kept in clientStorage (per user); newest 3 files only
+function auditLastKey() { var k = ""; try { k = figma.fileKey || ""; } catch (e) {} return k || figma.root.name; }
+async function auditGetLast() {
+  var all = null; try { all = await figma.clientStorage.getAsync("audit-last"); } catch (e) {}
+  var mine = all && all[auditLastKey()] ? all[auditLastKey()] : null;
+  figma.ui.postMessage({ type: "audit-last-data", payload: mine });
+}
+async function auditSaveLast(data) {
+  try {
+    var all = (await figma.clientStorage.getAsync("audit-last")) || {};
+    all[auditLastKey()] = data;
+    var keys = Object.keys(all).sort(function (a, b) { return (all[b].savedAt || 0) - (all[a].savedAt || 0); });
+    for (var i = 3; i < keys.length; i++) delete all[keys[i]];
+    await figma.clientStorage.setAsync("audit-last", all);
+    figma.ui.postMessage({ type: "audit-last-saved", ok: true });
+  } catch (e) {
+    console.warn("[Audit] could not save last scan:", e);
+    figma.ui.postMessage({ type: "audit-last-saved", ok: false });
+  }
+}
+
+// ─── Audit report on canvas ───────────────────────────────────────────
+// Builds a documentation frame from the report the panel is showing, so the
+// canvas always matches the screen. Unlike the scan itself this DOES create
+// content: it is an explicit action, never automatic.
+// Status colours verified on white at 16px: amber #E0A800 with #1A1A1A text
+// 8.1:1 (AAA); red #C4341B, green #157A44 and purple #6B4FD6 with white text
+// 5.0:1, 5.4:1 and 5.7:1 (all AA).
+
+async function dAuditStat(parent, label, value, pctText, colour) {
+  var card = df("Stat — " + label, "VERTICAL", 8);
+  card.paddingLeft = 20; card.paddingRight = 20; card.paddingTop = 18; card.paddingBottom = 18;
+  card.cornerRadius = 10;
+  card.fills = [{ type: "SOLID", color: DC.white }];
+  card.strokes = [{ type: "SOLID", color: DC.divider }]; card.strokeWeight = 1;
+
+  var top = df("Label", "HORIZONTAL", 8);
+  top.counterAxisAlignItems = "CENTER";
+  var dot = figma.createEllipse();
+  dot.name = "Dot"; dot.resize(12, 12);
+  dot.fills = [{ type: "SOLID", color: colour }];
+  top.appendChild(dot);
+  ac(top, await dt(label, DC.MIN, "Medium", DC.textSec));
+  ac(card, top, "FILL", "HUG");
+
+  ac(card, await dt(String(value), 34, "Bold", DC.text), "FILL", "HUG");
+  ac(card, await dt(pctText, DC.MIN, "Regular", DC.textSec), "FILL", "HUG");
+  ac(parent, card, "FILL", "HUG");
+  return card;
+}
+
+async function dAuditHealthBar(parent, r) {
+  var wrap = df("Health", "VERTICAL", 10);
+  wrap.paddingLeft = DC.P; wrap.paddingRight = DC.P; wrap.paddingTop = 4; wrap.paddingBottom = 20;
+
+  var inner = DC.W - DC.P * 2;
+  var total = Math.max(1, r.instancesScanned);
+  var segs = [
+    ["Linked", r.counts.linked, DC.auOk],
+    ["Broken", r.counts.broken, DC.auMiss],
+    ["In components", r.counts.inComp, DC.auComp],
+    ["In designs", r.counts.inDesign, DC.auDep],
+    ["Info only", r.counts.info, DC.auInfo],
+  ];
+  var bar = df("Bar", "HORIZONTAL", 0);
+  bar.cornerRadius = 8; bar.clipsContent = true;
+  bar.fills = [{ type: "SOLID", color: DC.divider }];
+  var used = 0;
+  for (var i = 0; i < segs.length; i++) {
+    if (!segs[i][1]) continue;
+    var w = i === segs.length - 1 ? Math.max(3, inner - used) : Math.max(3, Math.round(inner * segs[i][1] / total));
+    used += w;
+    var seg = figma.createRectangle();
+    seg.name = segs[i][0]; seg.resize(w, 16);
+    seg.fills = [{ type: "SOLID", color: segs[i][2] }];
+    bar.appendChild(seg);
+  }
+  ac(wrap, bar, "HUG", "HUG");
+  ac(parent, wrap, "FILL", "HUG");
+}
+
+async function dAuditSummary(parent, r) {
+  var row = df("Summary", "HORIZONTAL", 16);
+  row.paddingLeft = DC.P; row.paddingRight = DC.P; row.paddingTop = 28; row.paddingBottom = 16;
+  var total = Math.max(1, r.instancesScanned);
+  var pc = function (n) { return (100 * n / total).toFixed(1) + "% of all instances"; };
+  await dAuditStat(row, "Linked", r.counts.linked.toLocaleString(), pc(r.counts.linked), DC.auOk);
+  await dAuditStat(row, "Broken", r.counts.broken.toLocaleString(), pc(r.counts.broken), DC.auMiss);
+  await dAuditStat(row, "In components", r.counts.inComp.toLocaleString(), pc(r.counts.inComp), DC.auComp);
+  await dAuditStat(row, "In designs", r.counts.inDesign.toLocaleString(), pc(r.counts.inDesign), DC.auDep);
+  await dAuditStat(row, "Info only", r.counts.info.toLocaleString(), pc(r.counts.info), DC.auInfo);
+  ac(parent, row, "FILL", "HUG");
+}
+
+// What each status means — the report has to stand on its own away from the panel
+async function dAuditLegend(parent) {
+  var items = [
+    ["Broken", DC.auMiss, "The component no longer exists, or is no longer published in any reachable library. Figma still draws it from its local cache, so it looks fine, but the link is dead and it will never update again. This is the only category that is genuinely broken."],
+    ["In component", DC.auComp, "A live, published component is built on a retired one. Nothing looks wrong, but every design that places this component inherits the retired dependency, so fixing it once here clears it everywhere. Chase these first after broken links."],
+    ["In design", DC.auDep, "A retired component used directly in a design or template. Nothing is broken; swap it for the current component next time that screen is touched."],
+    ["Info only", DC.auInfo, "Cannot be fixed where it sits: nested inside another instance, so it is fixed in the component that contains it, or sitting on a Graveyard page, which is retired material and expected."],
+    ["Linked", DC.auOk, "Points to a component that exists, is published and has not been retired. Nothing to do."],
+  ];
+  await dSectionTitle(parent, "What the statuses mean");
+  var box = df("Legend", "VERTICAL", 14);
+  box.paddingLeft = DC.P; box.paddingRight = DC.P; box.paddingBottom = 8;
+  for (var i = 0; i < items.length; i++) {
+    var line = df("Item", "HORIZONTAL", 14);
+    line.counterAxisAlignItems = "MIN";
+    var b = await dBadge(items[i][0], items[i][1], items[i][0] === "In design" ? DC.auDepTxt : DC.white);
+    b.cornerRadius = 6;
+    ac(line, b);
+    var txt = df("Text", "VERTICAL", 0);
+    ac(txt, await dt(items[i][2], DC.MIN, "Regular", DC.textSec), "FILL", "HUG");
+    ac(line, txt, "FILL", "HUG");
+    ac(box, line, "FILL", "HUG");
+  }
+  ac(parent, box, "FILL", "HUG");
+}
+
+async function dAuditByPage(parent, r) {
+  if (!r.byPage || !r.byPage.length) return;
+  await dSectionTitle(parent, "Issues by live page");
+  var box = df("By page", "VERTICAL", 10);
+  box.paddingLeft = DC.P; box.paddingRight = DC.P; box.paddingBottom = 12;
+  ac(box, await dt("Pages the team works on today. Graveyard and other retired areas are excluded \u2014 they appear under Info only.", DC.MIN, "Regular", DC.textSec), "FILL", "HUG");
+  var max = r.byPage[0][1] || 1;
+  for (var i = 0; i < r.byPage.length; i++) {
+    var line = df("Page", "HORIZONTAL", 16);
+    line.counterAxisAlignItems = "CENTER";
+    var nameCol = df("Name", "VERTICAL", 0);
+    ac(nameCol, await dt(r.byPage[i][0], DC.MIN, "Medium", DC.text), "FILL", "HUG");
+    ac(line, nameCol, "FIXED", "HUG", 340);
+
+    var track = df("Track", "HORIZONTAL", 0);
+    track.cornerRadius = 5; track.clipsContent = true;
+    track.fills = [{ type: "SOLID", color: DC.divider }];
+    var fill = figma.createRectangle();
+    fill.name = "Fill";
+    fill.resize(Math.max(4, Math.round(620 * r.byPage[i][1] / max)), 10);
+    fill.fills = [{ type: "SOLID", color: DC.auMiss }];
+    track.appendChild(fill);
+    ac(line, track, "FILL", "HUG");
+
+    var cnt = df("Count", "VERTICAL", 0);
+    cnt.counterAxisAlignItems = "MAX";
+    ac(cnt, await dt(String(r.byPage[i][1]), DC.MIN, "Semi Bold", DC.text), "FILL", "HUG");
+    ac(line, cnt, "FIXED", "HUG", 60);
+    ac(box, line, "FILL", "HUG");
+  }
+  ac(parent, box, "FILL", "HUG");
+}
+
+async function dAuditTableCell(row, text, weight, colour, mode, width) {
+  var cell = df("Cell", "VERTICAL", 2);
+  cell.paddingLeft = 14; cell.paddingRight = 14; cell.paddingTop = 12; cell.paddingBottom = 12;
+  ac(cell, await dt(text || "—", DC.MIN, weight, colour), "FILL", "HUG");
+  ac(row, cell, mode, "FILL", width);
+  return cell;
+}
+
+async function dAuditIssues(parent, r) {
+  await dSectionTitle(parent, "What to fix — " + r.issueCount.toLocaleString() + " instance" + (r.issueCount === 1 ? "" : "s") + " in " + r.rows.length + " component" + (r.rows.length === 1 ? "" : "s"));
+  var wrap = df("Issues", "VERTICAL", 0);
+  wrap.paddingLeft = DC.P; wrap.paddingRight = DC.P; wrap.paddingBottom = 16;
+
+  var tbl = df("Table", "VERTICAL", 0);
+  tbl.cornerRadius = 8; tbl.clipsContent = true;
+  tbl.strokes = [{ type: "SOLID", color: DC.divider }]; tbl.strokeWeight = 1;
+
+  var hdr = df("Header", "HORIZONTAL", 0);
+  hdr.fills = [{ type: "SOLID", color: DC.badgeBg }];
+  await dAuditTableCell(hdr, "Status", "Semi Bold", DC.text, "FIXED", 130);
+  await dAuditTableCell(hdr, "Component", "Semi Bold", DC.text, "FILL");
+  await dAuditTableCell(hdr, "Page", "Semi Bold", DC.text, "FIXED", 230);
+  await dAuditTableCell(hdr, "Location", "Semi Bold", DC.text, "FILL");
+  ac(tbl, hdr, "FILL", "HUG");
+
+  var shown = r.rows.slice(0, 300);
+  for (var i = 0; i < shown.length; i++) {
+    var it = shown[i];
+    var line = figma.createRectangle();
+    line.name = "Divider"; line.resize(100, 1);
+    line.fills = [{ type: "SOLID", color: DC.divider }];
+    ac(tbl, line, "FILL", "FIXED");
+
+    var tr = df("Row — " + it.name, "HORIZONTAL", 0);
+    tr.fills = [{ type: "SOLID", color: DC.white }];
+
+    var sevMap = { broken: ["Broken", DC.auMiss, DC.white], component: ["In component", DC.auComp, DC.white], design: ["In design", DC.auDep, DC.auDepTxt] };
+    var sev = sevMap[it.sev] || sevMap.design;
+    var stCell = df("Cell", "VERTICAL", 0);
+    stCell.paddingLeft = 14; stCell.paddingRight = 14; stCell.paddingTop = 12; stCell.paddingBottom = 12;
+    var bdg = await dBadge(sev[0], sev[1], sev[2]);
+    bdg.cornerRadius = 5;
+    ac(stCell, bdg);
+    ac(tr, stCell, "FIXED", "FILL", 130);
+
+    var nameCell = df("Cell", "VERTICAL", 3);
+    nameCell.paddingLeft = 14; nameCell.paddingRight = 14; nameCell.paddingTop = 12; nameCell.paddingBottom = 12;
+    ac(nameCell, await dt(it.name + (it.count > 1 ? "  ×" + it.count : ""), DC.MIN, "Semi Bold", DC.text), "FILL", "HUG");
+    var sub = (it.sev === "component" && it.builtInto ? "built into " + it.builtInto + "  ·  " : "") + (it.detectedBy || "");
+    if (it.replacement) sub += "  ·  replace with: " + it.replacement;
+    if (it.library) sub += "  ·  " + it.library;
+    ac(nameCell, await dt(sub, DC.MIN, "Regular", DC.textSec), "FILL", "HUG");
+    ac(tr, nameCell, "FILL", "FILL");
+
+    await dAuditTableCell(tr, it.page, "Regular", DC.text, "FIXED", 230);
+
+    var locCell = df("Cell", "VERTICAL", 3);
+    locCell.paddingLeft = 14; locCell.paddingRight = 14; locCell.paddingTop = 12; locCell.paddingBottom = 12;
+    ac(locCell, await dt(it.frame || "—", DC.MIN, "Medium", DC.text), "FILL", "HUG");
+    if (it.path) ac(locCell, await dt(it.path, DC.MIN, "Regular", DC.textSec), "FILL", "HUG");
+    ac(tr, locCell, "FILL", "FILL");
+
+    ac(tbl, tr, "FILL", "HUG");
+  }
+  ac(wrap, tbl, "FILL", "HUG");
+
+  if (r.rows.length > 300) {
+    var more = df("More", "VERTICAL", 0);
+    more.paddingTop = 12;
+    ac(more, await dt("Showing the first 300 components. The full list is in the CSV export.", DC.MIN, "Regular", DC.textSec), "FILL", "HUG");
+    ac(wrap, more, "FILL", "HUG");
+  }
+  ac(parent, wrap, "FILL", "HUG");
+}
+
+async function dAuditInfoNote(parent, r) {
+  if (!r.counts.info) return;
+  await dSectionTitle(parent, "Info only — " + r.counts.info.toLocaleString() + " instances");
+  var box = df("Info note", "VERTICAL", 0);
+  box.paddingLeft = DC.P; box.paddingRight = DC.P; box.paddingBottom = 16;
+  var parts = [];
+  if (r.info.nested) parts.push(r.info.nested.toLocaleString() + " nested inside another component");
+  if (r.info.graveyard) parts.push(r.info.graveyard.toLocaleString() + " sitting on a Graveyard page");
+  var txt = parts.join(" and ") + ". These are not counted as issues: a nested instance is fixed once in the "
+    + "library and every copy is fixed with it, and retired material using other retired material is expected.";
+  ac(box, await dDescCallout(txt), "FILL", "HUG");
+  ac(parent, box, "FILL", "HUG");
+}
+
+// Private components: skipped on purpose, and explicitly harmless
+async function dAuditPrivateNote(parent, r) {
+  if (!r.privateHelpers) return;
+  await dSectionTitle(parent, "Private components — " + r.privateHelpers.toLocaleString() + " skipped");
+  var box = df("Private note", "VERTICAL", 0);
+  box.paddingLeft = DC.P; box.paddingRight = DC.P; box.paddingBottom = 16;
+  var txt = "A component whose name starts with a dot or an underscore is private in Figma: it is never "
+    + "published to a library, because it only exists as an internal part of a published component. The "
+    + "library API has nothing to say about them, so they are skipped rather than checked. They count as "
+    + "correctly linked and do not affect the health score above.";
+  ac(box, await dDescCallout(txt), "FILL", "HUG");
+  ac(parent, box, "FILL", "HUG");
+}
+
+async function dAuditHeader(parent, r) {
+  var h = df("Header", "VERTICAL", 0);
+  h.fills = [{ type: "SOLID", color: DC.headerBg }];
+  h.paddingLeft = DC.P; h.paddingRight = DC.P; h.paddingTop = DC.P; h.paddingBottom = DC.P;
+
+  // Title on the left, health score on the right. Laid out with auto-layout rather
+  // than absolute positioning, so the score can never be clipped by a fixed width.
+  var top = df("Top", "HORIZONTAL", 40);
+  top.counterAxisAlignItems = "CENTER";
+
+  var left = df("Title", "VERTICAL", 12);
+  ac(left, await dt("Component Audit", 42, "Bold", DC.white), "FILL", "HUG");
+
+  var bits = [];
+  if (r.counts.broken) bits.push(r.counts.broken.toLocaleString() + " broken");
+  if (r.counts.inComp) bits.push(r.counts.inComp.toLocaleString() + " in components");
+  if (r.counts.inDesign) bits.push(r.counts.inDesign.toLocaleString() + " in designs");
+  if (!bits.length) bits.push("nothing to fix");
+  var counts = bits.join(" \u00b7 ") + "  \u00b7  " + r.instancesScanned.toLocaleString()
+    + " instances scanned \u00b7 " + (r.scope === "page" ? "current page" : r.pages + " pages");
+  var countLine = await dt(counts.toUpperCase(), DC.MIN, "Medium", DC.white);
+  countLine.opacity = 0.5;
+  countLine.letterSpacing = { value: 2, unit: "PIXELS" };
+  ac(left, countLine, "FILL", "HUG");
+
+  var sub = await dt(r.fileName + (r.libraries && r.libraries.length ? "  \u00b7  libraries verified: " + r.libraries.join(", ") : ""), DC.MIN, "Regular", DC.white);
+  sub.opacity = 0.4;
+  ac(left, sub, "FILL", "HUG");
+  ac(top, left, "FILL", "HUG");
+
+  // Health score
+  var pctNum = r.health != null ? r.health : 100;
+  var col = pctNum >= 99.5 ? DC.hpGood : (pctNum >= 98 ? DC.hpWarn : DC.hpBad);
+  var score = df("Health score", "VERTICAL", 4);
+  score.counterAxisAlignItems = "MAX";
+
+  ac(score, await dt(pctNum.toFixed(2).replace(/\.00$/, "") + "%", 64, "Bold", col));
+  var lbl = await dt("DESIGN SYSTEM HEALTH", DC.MIN, "Medium", DC.white);
+  lbl.opacity = 0.55; lbl.letterSpacing = { value: 2, unit: "PIXELS" };
+  ac(score, lbl);
+  if (r.componentsTotal) {
+    var camo = await dt(r.componentsAffected.toLocaleString() + " of " + r.componentsTotal.toLocaleString() + " components affected", DC.MIN, "Regular", DC.white);
+    camo.opacity = 0.4;
+    ac(score, camo);
+  }
+  // Force HUG on both axes so the parent can never squeeze it into a fixed width
+  score.primaryAxisSizingMode = "AUTO";
+  score.counterAxisSizingMode = "AUTO";
+  score.clipsContent = false;
+  ac(top, score, "HUG", "HUG");
+
+  ac(h, top, "FILL", "HUG");
+  ac(parent, h, "FILL", "HUG");
+}
+
+async function generateAuditDocumentation(r) {
+  try {
+    figma.ui.postMessage({ type: "audit-doc-progress", stage: "start" });
+    _lf.clear();
+    await lf("Inter", "Regular"); await lf("Inter", "Medium");
+    await lf("Inter", "Semi Bold"); await lf("Inter", "Bold");
+
+    var page = figma.currentPage;
+    var startX = 0;
+    for (var n = 0; n < page.children.length; n++) {
+      var right = page.children[n].x + page.children[n].width;
+      if (right > startX) startX = right;
+    }
+    startX += 200;
+
+    var main = figma.createFrame();
+    main.name = "Component Audit — " + r.fileName;
+    main.layoutMode = "VERTICAL";
+    main.counterAxisSizingMode = "FIXED";
+    main.primaryAxisSizingMode = "AUTO";
+    main.resize(DC.W, 100);
+    main.fills = [{ type: "SOLID", color: DC.white }];
+    main.itemSpacing = 0;
+    page.appendChild(main);
+    main.x = startX; main.y = 0;
+
+    await dAuditHeader(main, r);
+    await dAuditSummary(main, r);
+    await dAuditHealthBar(main, r);
+    dDiv(main);
+    await dAuditByPage(main, r);
+    dDiv(main);
+    if (r.rows.length) { await dAuditIssues(main, r); dDiv(main); }
+    await dAuditInfoNote(main, r);
+    await dAuditPrivateNote(main, r);
+    dDiv(main);
+    await dAuditLegend(main);
+    dDiv(main);
+    await dFooter(main);
+
+    figma.viewport.scrollAndZoomIntoView([main]);
+    figma.currentPage.selection = [main];
+    figma.ui.postMessage({ type: "audit-doc-progress", stage: "done" });
+    figma.notify("Audit report created on canvas");
+  } catch (err) {
+    console.error("[Audit doc] Error:", err);
+    figma.ui.postMessage({ type: "audit-doc-progress", stage: "error", message: String((err && err.message) || err) });
+    figma.notify("Could not create the report: " + String((err && err.message) || err));
+  }
+}
+
 // ─── Listen for UI messages ───
 
 figma.ui.onmessage = async (msg) => {
-  if (msg.type === "sync") sendAllData();
+  if (msg.type === "sync") await sendAllData();
   if (msg.type === "close") figma.closePlugin();
   if (msg.type === "generate-docs") await generateDocumentation(msg.payload);
   if (msg.type === "generate-var-docs") await generateVariableDocumentation(msg.payload);
   if (msg.type === "resize-ui") figma.ui.resize(msg.width, msg.height);
+
+  // ─── Audit (read-only) ───
+  if (msg.type === "audit-scan") await runAudit(msg.scope || "all");
+  if (msg.type === "audit-locate") auditLocate(msg.nodeId);
+  if (msg.type === "audit-cancel") _auditCancel = true;
+  if (msg.type === "audit-expand") auditExpand(msg.uids || []);
+
+  // ─── Export naming preferences ───
+  if (msg.type === "naming-get") {
+    var nOpts = await figma.clientStorage.getAsync("naming-opts");
+    figma.ui.postMessage({ type: "naming-data", payload: nOpts || null });
+  }
+  if (msg.type === "naming-save") await figma.clientStorage.setAsync("naming-opts", msg.payload);
+  if (msg.type === "audit-generate-doc") await generateAuditDocumentation(msg.payload);
+  if (msg.type === "audit-file-info") auditFileInfo();
+  if (msg.type === "audit-get-last") await auditGetLast();
+  if (msg.type === "audit-save-last") await auditSaveLast(msg.payload);
+  if (msg.type === "audit-get-token") {
+    var auTok = await figma.clientStorage.getAsync("audit-token");
+    figma.ui.postMessage({ type: "audit-token-data", payload: auTok || null });
+  }
+  if (msg.type === "audit-save-token") {
+    await figma.clientStorage.setAsync("audit-token", msg.payload);
+    figma.ui.postMessage({ type: "audit-token-data", payload: msg.payload });
+  }
+  if (msg.type === "audit-clear-token") {
+    await figma.clientStorage.deleteAsync("audit-token");
+    figma.ui.postMessage({ type: "audit-token-data", payload: null });
+  }
 
   // ─── Bitbucket credential storage ───
   if (msg.type === "bb-get-creds") {
