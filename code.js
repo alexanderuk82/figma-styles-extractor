@@ -2741,9 +2741,9 @@ figma.ui.onmessage = async (msg) => {
   if (msg.type === "audit-expand") auditExpand(msg.uids || []);
 
   // ─── Export naming preferences ───
-  // Keyed per Figma file: the global library and the mobile app each keep their
-  // own namespace, aliases and paths, so exports from different files never
-  // default to the same names or the same destination.
+  // Keyed per Figma file: each file keeps its own namespace, aliases and paths,
+  // so exports from different files never default to the same names or the
+  // same destination.
   if (msg.type === "naming-get") {
     var nOpts = await figma.clientStorage.getAsync("naming-opts:" + auditLastKey());
     figma.ui.postMessage({ type: "naming-data", payload: nOpts || null, fileId: auditLastKey(), fileName: figma.root.name });

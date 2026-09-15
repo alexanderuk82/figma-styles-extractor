@@ -1,5 +1,16 @@
 # Changelog — DS Styles Extractor
 
+## v1.9.3 — 15 September 2026
+
+### No project names anywhere in the plugin
+- The button that suggests a namespace from the file title was trimming a couple of brand-specific words.
+  It now removes only structural noise, bracketed tags such as "[Brand]" and version markers such as
+  "(ver2.0)", and knows nothing about whose files it runs in. The suggestion is a starting point: the
+  Namespace field is free text and accepts any name.
+- The button now reads "Suggest from file" and the field invites you to type any name, to make clear that
+  nothing is fixed.
+
+
 ## v1.9.2 — 15 September 2026
 
 ### The namespace now covers styles as well as variables

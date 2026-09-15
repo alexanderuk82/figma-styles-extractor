@@ -742,7 +742,7 @@ body.audit-mode .naming-bar{display:none!important}
   <span class="nb-title">NAMING</span>
   <label class="nb-opt"><input type="checkbox" id="nb-collection" checked> Collection prefix</label>
   <label class="nb-opt"><input type="checkbox" id="nb-dedupe" checked> Merge repeated words</label>
-  <label class="nb-opt nb-prefix au-tip" data-tip="Goes in front of every token. In CSS it becomes --namespace-…; in W3C DTCG it becomes the top-level key, so tokens from this file never collide with another file\u2019s when both are merged by a build.">Namespace <input type="text" id="nb-prefix" placeholder="none" autocomplete="off"></label><button type="button" class="nb-more" id="nb-suggest" title="Use a namespace based on this file\u2019s name">Use file name</button>
+  <label class="nb-opt nb-prefix au-tip" data-tip="Goes in front of every token. In CSS it becomes --namespace-…; in W3C DTCG it becomes the top-level key, so tokens from this file never collide with another file\u2019s when both are merged by a build.">Namespace <input type="text" id="nb-prefix" placeholder="type any name" autocomplete="off"></label><button type="button" class="nb-more" id="nb-suggest" title="Suggests a name from this file\u2019s title. Edit it freely afterwards.">Suggest from file</button>
   <button type="button" class="nb-more" id="nb-more">Per collection</button>
   <span class="nb-example" id="nb-example"></span>
 </div>
@@ -1504,14 +1504,17 @@ function auCurrentFileSlug() {
   const slug = auFileSlug(n);
   return slug === 'tokens' ? '' : slug;
 }
-// A short namespace derived from the file name, e.g. "[Brand] Decibel Global Branding"
-// → "global-branding". Used as the default prefix and in the default publish path, so
+// A short namespace suggested from the file title, e.g. "[Brand] Acme Tokens (ver2)"
+// → "acme-tokens". Offered as a starting point for the namespace and the publish path, so
 // two files never export under the same names or to the same file by accident.
+// Only structural noise is removed — bracketed tags like "[Brand]" and version
+// markers like "(ver2.0)" or "v3". No brand or project words live here: the
+// result is a SUGGESTION the user can overwrite with anything, and the plugin
+// must not know whose files it is running in.
 function auFileSlug(name) {
   return String(name || '')
-    .replace(/\[[^\]]*\]/g, ' ')                       // drop [Brand] / [Design System] tags
-    .replace(/\(ver[^)]*\)|v\d+(\.\d+)*/gi, ' ')       // drop version markers
-    .replace(/testing_/gi, ' ').replace(/\bdecibel\b/gi, ' ')  // drop the sandbox marker, then the brand
+    .replace(/\[[^\]]*\]/g, ' ')
+    .replace(/\(ver[^)]*\)|\bv\d+(\.\d+)*\b/gi, ' ')
     .replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'tokens';
 }
 // Aliases are keyed by the disambiguated collection name, which is stable for a
