@@ -64,3 +64,12 @@ describe("start-up never hides local data", () => {
     assert.equal(ui.store["sync-label"].textContent, "Synced");
   });
 });
+
+describe("markup hygiene", () => {
+  test("no JavaScript unicode escapes are left inside HTML attributes (they render literally)", () => {
+    const html = require("fs").readFileSync(require("path").join(__dirname, "..", "ui.html"), "utf8");
+    const markup = html.slice(0, html.indexOf("<script>"));   // attributes live in the markup, not the script
+    const hits = [...markup.matchAll(/(data-tip|title|placeholder|alt)="[^"]*\\u[0-9a-fA-F]{4}[^"]*"/g)].map((m) => m[0].slice(0, 70));
+    assert.deepEqual(hits, [], "literal \\uXXXX inside an HTML attribute");
+  });
+});

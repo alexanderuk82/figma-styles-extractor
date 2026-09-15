@@ -1,5 +1,12 @@
 # Changelog — DS Styles Extractor
 
+## v1.9.6 — 15 September 2026
+
+### Fixed: the Namespace tooltip showed a raw escape code
+- It read `file\u2019s` instead of `file's`. Rewritten in plain language, and a test now fails if any
+  such escape is left inside an HTML attribute again.
+
+
 ## v1.9.5 — 15 September 2026
 
 ### A test suite guards every export, and the build refuses to ship a failing one

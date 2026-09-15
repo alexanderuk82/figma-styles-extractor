@@ -746,7 +746,7 @@ body.audit-mode .naming-bar{display:none!important}
   <span class="nb-title">NAMING</span>
   <label class="nb-opt"><input type="checkbox" id="nb-collection" checked> Collection prefix</label>
   <label class="nb-opt"><input type="checkbox" id="nb-dedupe" checked> Merge repeated words</label>
-  <label class="nb-opt nb-prefix au-tip" data-tip="Goes in front of every token. In CSS it becomes --namespace-…; in W3C DTCG it becomes the top-level key, so tokens from this file never collide with another file\u2019s when both are merged by a build.">Namespace <input type="text" id="nb-prefix" placeholder="type any name" autocomplete="off"></label><button type="button" class="nb-more" id="nb-suggest" title="Suggests a name from this file\u2019s title. Edit it freely afterwards.">Suggest from file</button>
+  <label class="nb-opt nb-prefix au-tip" data-tip="Goes in front of every token from this file. In CSS it is the first word of each custom property; in W3C DTCG it is the top-level key; in Flutter it starts every class name. Two files with different namespaces can be merged by a build without one overwriting the other.">Namespace <input type="text" id="nb-prefix" placeholder="type any name" autocomplete="off"></label><button type="button" class="nb-more" id="nb-suggest" title="Suggests a name from this file&rsquo;s title. Edit it freely afterwards.">Suggest from file</button>
   <button type="button" class="nb-more" id="nb-more">Per collection</button>
   <span class="nb-example" id="nb-example"></span>
 </div>
