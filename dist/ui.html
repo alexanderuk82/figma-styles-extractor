@@ -742,7 +742,7 @@ body.audit-mode .naming-bar{display:none!important}
   <span class="nb-title">NAMING</span>
   <label class="nb-opt"><input type="checkbox" id="nb-collection" checked> Collection prefix</label>
   <label class="nb-opt"><input type="checkbox" id="nb-dedupe" checked> Merge repeated words</label>
-  <label class="nb-opt nb-prefix">Prefix <input type="text" id="nb-prefix" placeholder="none" autocomplete="off"></label>
+  <label class="nb-opt nb-prefix au-tip" data-tip="Goes in front of every token. In CSS it becomes --namespace-…; in W3C DTCG it becomes the top-level key, so tokens from this file never collide with another file\u2019s when both are merged by a build.">Namespace <input type="text" id="nb-prefix" placeholder="none" autocomplete="off"></label><button type="button" class="nb-more" id="nb-suggest" title="Use a namespace based on this file\u2019s name">Use file name</button>
   <button type="button" class="nb-more" id="nb-more">Per collection</button>
   <span class="nb-example" id="nb-example"></span>
 </div>
@@ -1479,6 +1479,17 @@ function formatVariablesFigma() {
 // primitives-global-global-primitive-… Everything here is configurable, and the
 // raw Figma JSON is deliberately left untouched: it is a faithful dump used for diffs.
 let auNameOpts = { collection: true, dedupe: true, prefix: '', aliases: {} };
+let auFileName = '';   // the Figma file this panel is open in
+// A short namespace derived from the file name, e.g. "[Brand] Decibel Global Branding"
+// → "global-branding". Used as the default prefix and in the default publish path, so
+// two files never export under the same names or to the same file by accident.
+function auFileSlug(name) {
+  return String(name || '')
+    .replace(/\[[^\]]*\]/g, ' ')                       // drop [Brand] / [Design System] tags
+    .replace(/\(ver[^)]*\)|v\d+(\.\d+)*/gi, ' ')       // drop version markers
+    .replace(/testing_/gi, ' ').replace(/\bdecibel\b/gi, ' ')  // drop the sandbox marker, then the brand
+    .replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'tokens';
+}
 // Aliases are keyed by the disambiguated collection name, which is stable for a
 // given file, so a rename in the export survives closing and reopening the plugin.
 function auColAlias(c, namer) {
@@ -2127,6 +2138,8 @@ function startTimer() { if (timerInterval) clearInterval(timerInterval); timerIn
 window.onmessage = (event) => {
   const msg = event.data.pluginMessage;
   if (msg.type === 'naming-data') {
+    if (msg.fileName) auFileName = msg.fileName;
+    auNameOpts = { collection: true, dedupe: true, prefix: '', aliases: {} };   // start clean per file
     if (msg.payload) {
       auNameOpts = Object.assign(auNameOpts, msg.payload);
       document.getElementById('nb-collection').checked = !!auNameOpts.collection;
@@ -2778,26 +2791,33 @@ document.getElementById('var-modal-generate').onclick = () => {
   }, '*');
 };
 
-// ── Button: opens modal (Components only) ──
+// Several collections selected: let the user choose which one to document
+function varDocsPickCollection(cols) {
+  auEl('au-modal-title').textContent = 'Which collection do you want to document?';
+  auEl('au-modal-note').textContent = 'One documentation set is generated per collection. Pick one; you can come back for the others.';
+  auEl('au-modal-body').innerHTML = cols.map((c, i) => '<div class="au-modal-row" style="cursor:pointer" data-pick="' + i + '"><span class="n">' + (i + 1) + '</span><span><b>' + esc(c.name) + '</b>' + (c.source === 'global-library' ? ' <span style="color:var(--figma-color-text-secondary,#888);font-size:11px">global</span>' : '') + '<div class="au-modal-why">' + c.variables.length + ' variables \u00b7 ' + c.modes.map(m => m.name).join(', ') + '</div></span></div>').join('');
+  auEl('au-modal-count').textContent = cols.length + ' collections selected';
+  auEl('au-modal-copy').style.display = 'none';
+  auEl('au-modal-overlay').classList.add('show');
+  auEl('au-modal-body').querySelectorAll('[data-pick]').forEach(row => {
+    row.onclick = () => { auModalClose(); auEl('au-modal-copy').style.display = ''; openVarModal(cols[+row.dataset.pick]); };
+  });
+}
+
+// ── Button: opens modal for the chosen collection ──
 document.getElementById('btn-var-docs').onclick = () => {
   if (!variablesData || !variablesData.collections || !variablesData.collections.length) return;
 
-  // Find components collection
-  var compCol = null;
-  for (var i = 0; i < variablesData.collections.length; i++) {
-    if (variablesData.collections[i].name.toLowerCase() === 'components') {
-      compCol = variablesData.collections[i];
-      break;
-    }
-  }
+  // Any selected collection can be documented. A collection called "components"
+  // is only a tie-break preference, never a requirement — the plugin has to work
+  // in every file, not just the app one.
+  var chosen = variablesData.collections.filter(c => selectedCollections.has(c.id) && c.variables && c.variables.length);
+  if (!chosen.length) { showToast('Select at least one collection to document.'); return; }
+  var compCol = chosen.find(c => c.name.toLowerCase() === 'components') || chosen[0];
+  if (chosen.length > 1) { varDocsPickCollection(chosen); return; }
 
-  if (!compCol) {
-    showToast('No "Components" collection found in this file.');
-    return;
-  }
-
-  if (!selectedCollections.has(compCol.id)) {
-    showToast('Select the Components collection to generate documentation.');
+  if (false) {
+    showToast('');
     return;
   }
 
@@ -3017,8 +3037,11 @@ function buildExportContent(scope, format) {
 // ── Default file path ──
 function pubDefaultFilePath(scope, format) {
   const ext = pubFileExt(format);
-  if (scope === 'both') return 'ds/tokens/ds-tokens' + ext;
-  return 'ds/tokens/ds-' + scope + ext;
+  // The file name carries the Figma file, so the global library and the mobile
+  // app never publish to the same path by default.
+  const slug = auFileSlug(auFileName || (stylesData && stylesData._meta && stylesData._meta.fileName) || '');
+  const what = scope === 'both' ? 'tokens' : scope;
+  return 'ds/tokens/' + (slug && slug !== 'tokens' ? slug + '-' : 'ds-') + what + ext;
 }
 
 // ── Smart path update: keep user's directory, rebuild filename from scope + format ──
@@ -3793,7 +3816,8 @@ function openPublishModal() {
 
   // ── File path: saved directory + scope-based filename + format extension ──
   var ext = pubFileExt(_pubFormat);
-  var fileName = 'ds-' + (_pubScope === 'both' ? 'tokens' : _pubScope) + ext;
+  var slug = auFileSlug(auFileName || (stylesData && stylesData._meta && stylesData._meta.fileName) || '');
+  var fileName = (slug && slug !== 'tokens' ? slug + '-' : 'ds-') + (_pubScope === 'both' ? 'tokens' : _pubScope) + ext;
   var dir = (cfg && cfg.fileDir) ? cfg.fileDir : 'ds/tokens/';
   document.getElementById('pub-filepath').value = dir + fileName;
 
@@ -5233,6 +5257,7 @@ function auNamingChanged() {
 document.getElementById('nb-collection').onchange = auNamingChanged;
 document.getElementById('nb-dedupe').onchange = auNamingChanged;
 document.getElementById('nb-prefix').oninput = auNamingChanged;
+document.getElementById('nb-suggest').onclick = () => { document.getElementById('nb-prefix').value = auFileSlug(auFileName); auNamingChanged(); };
 parent.postMessage({ pluginMessage: { type: 'naming-get' } }, '*');
 
 // ── Export ──

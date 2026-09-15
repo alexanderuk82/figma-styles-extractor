@@ -705,6 +705,7 @@ var docState = {
   rows: new Map(),
   snapshot: { paint: new Map(), text: new Map(), effect: new Map(), variable: new Map() },
   varModes: [],
+  varModesByCollection: {},  // collection name → modes, so variable doc rows rebuild in ANY file
 };
 var _liveTimer = null;
 var _isLiveUpdating = false;
@@ -1724,6 +1725,7 @@ async function generateVariableDocumentation(payload) {
   docState.snapshot.variable.clear();
   docState.frames = docState.frames.filter(function(f) { return !f.isVariable; });
   docState.varModes = modes;
+  docState.varModesByCollection[collectionName] = modes;
 
   var totalVars = 0;
   for (var tv = 0; tv < groups.length; tv++) totalVars += groups[tv].variables.length;
@@ -2004,10 +2006,11 @@ function detectExistingDocs() {
         variableNames.add(col.variables[vv].name);
         varLookup[col.variables[vv].name] = col.variables[vv];
       }
-      // Store modes if this looks like our tracked collection
-      if (col.name.toLowerCase() === "components" && docState.varModes.length === 0) {
-        docState.varModes = col.modes;
-      }
+      // Remember every collection's modes. Variable doc rows rebuild with the
+      // modes of the collection they came from; the old code only knew a
+      // collection called "components", which made Live Sync file-specific.
+      docState.varModesByCollection[col.name] = col.modes;
+      if (docState.varModes.length === 0) docState.varModes = col.modes;
     }
   }
 
@@ -2723,11 +2726,19 @@ figma.ui.onmessage = async (msg) => {
   if (msg.type === "audit-expand") auditExpand(msg.uids || []);
 
   // ─── Export naming preferences ───
+  // Keyed per Figma file: the global library and the mobile app each keep their
+  // own namespace, aliases and paths, so exports from different files never
+  // default to the same names or the same destination.
   if (msg.type === "naming-get") {
-    var nOpts = await figma.clientStorage.getAsync("naming-opts");
-    figma.ui.postMessage({ type: "naming-data", payload: nOpts || null });
+    var nOpts = await figma.clientStorage.getAsync("naming-opts:" + auditLastKey());
+    figma.ui.postMessage({ type: "naming-data", payload: nOpts || null, fileId: auditLastKey(), fileName: figma.root.name });
   }
-  if (msg.type === "naming-save") await figma.clientStorage.setAsync("naming-opts", msg.payload);
+  if (msg.type === "naming-save") await figma.clientStorage.setAsync("naming-opts:" + auditLastKey(), msg.payload);
+  if (msg.type === "pubpath-get") {
+    var pp = await figma.clientStorage.getAsync("pub-path:" + auditLastKey());
+    figma.ui.postMessage({ type: "pubpath-data", payload: pp || null });
+  }
+  if (msg.type === "pubpath-save") await figma.clientStorage.setAsync("pub-path:" + auditLastKey(), msg.payload);
   if (msg.type === "audit-generate-doc") await generateAuditDocumentation(msg.payload);
   if (msg.type === "audit-file-info") auditFileInfo();
   if (msg.type === "audit-get-last") await auditGetLast();

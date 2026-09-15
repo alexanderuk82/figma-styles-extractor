@@ -1,5 +1,29 @@
 # Changelog — DS Styles Extractor
 
+## v1.9.0 — 15 September 2026
+
+### Fixed: the plugin behaved as if it only belonged to the app file
+- **Generate Variables Documentation demanded a collection called "Components".** Opened in the brand
+  library, whose collections are *primitives* and *semantics*, the button refused with "No Components
+  collection found". Any selected collection can now be documented; when several are selected you choose
+  which one, and a collection called Components is only preferred, never required.
+- Live Sync for variable documentation likewise only knew the modes of a "Components" collection. It now
+  remembers every collection's modes, so rebuilt rows are correct in any file.
+
+### New: settings that follow the file, and defaults that cannot collide
+Exporting the global library and the mobile app into the same folder used to overwrite one with the
+other: both defaulted to the same file name and, once merged by a build, to the same token paths.
+- **Naming settings are now stored per Figma file.** The brand library keeps its own namespace and
+  aliases, the app keeps its own. Switching files switches settings.
+- **A namespace derived from the file name is one click away** ("Use file name"), for example
+  `global-branding` for the brand library and `mobile-app` for the app. In CSS it becomes the leading
+  `--global-branding-…`; in W3C DTCG it becomes the top-level key, so tokens from two files live under
+  different roots and a build that merges both no longer has anything to overwrite.
+- **The default publish path now carries the file name**: `ds/tokens/global-branding-variables.tokens.json`
+  and `ds/tokens/mobile-app-variables.tokens.json` instead of one shared `ds-variables.tokens.json`.
+- The "Prefix" control is now labelled **Namespace**, with an explanation of what it does in each format.
+
+
 ## v1.8.1 — 4 September 2026
 
 ### New: a name of your own for each collection
