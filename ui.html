@@ -1061,7 +1061,9 @@ function getFlutterClassName() {
     if (name) return name;
   }
   const slug = auCurrentFileSlug();
-  return slug ? toPascalCase(slug) + 'Tokens' : 'DSStyles';
+  if (!slug) return 'DSStyles';
+  const cls = toPascalCase(slug);
+  return /Tokens$/.test(cls) ? cls : cls + 'Tokens';
 }
 function toCamel(name) {
   const parts = name.replace(/\//g, ' ').replace(/[^a-zA-Z0-9 ]/g, '').trim().split(/\s+/);
@@ -1300,7 +1302,7 @@ function _flutterPaintStyles(data) {
   for (var s of data.paintStyles) {
     var p = s.paints[0];
     if (p && p.type === 'SOLID' && p.color) {
-      o += '  static const ' + toCamel(s.name) + ' = ' + hexToFlutterColor(p.color.hex, p.color.a) + ';\n';
+      o += '  static const Color ' + toCamel(s.name) + ' = ' + hexToFlutterColor(p.color.hex, p.color.a) + ';\n';
     } else if (p && p.type && p.type.startsWith('GRADIENT_') && p.gradientStops) {
       var gType = p.type === 'GRADIENT_RADIAL' ? 'RadialGradient' : p.type === 'GRADIENT_ANGULAR' ? 'SweepGradient' : 'LinearGradient';
       var colors = p.gradientStops.map(function(st) { return hexToFlutterColor(st.color.hex, st.color.a); }).join(', ');
@@ -1663,11 +1665,14 @@ function resolveAliasValue(val, modeName, visited) {
   return null;
 }
 
+// Explicit Dart types on every constant. Without them `static const space4 = 16;`
+// is inferred as int, and passing it where Flutter expects a double
+// (EdgeInsets.all, SizedBox.height …) fails to compile.
 function _flutterVarLine(name, val) {
-  if (val.type === 'color') return '  static const ' + name + ' = ' + hexToFlutterColor(val.hex, val.a) + ';\n';
-  if (val.type === 'number') return '  static const ' + name + ' = ' + val.value + ';\n';
-  if (val.type === 'string') return "  static const " + name + " = '" + val.value + "';\n";
-  if (val.type === 'boolean') return '  static const ' + name + ' = ' + val.value + ';\n';
+  if (val.type === 'color') return '  static const Color ' + name + ' = ' + hexToFlutterColor(val.hex, val.a) + ';\n';
+  if (val.type === 'number') return '  static const double ' + name + ' = ' + val.value + ';\n';
+  if (val.type === 'string') return "  static const String " + name + " = '" + String(val.value).replace(/'/g, "\\'") + "';\n";
+  if (val.type === 'boolean') return '  static const bool ' + name + ' = ' + val.value + ';\n';
   return '';
 }
 
@@ -5069,6 +5074,12 @@ function auditModel(p) {
   return { rows, linked, broken, inComp, inDesign, dep: inComp + inDesign, miss: broken, inh: info, info,
            total: Math.max(1, p.instancesScanned), byPage };
 }
+// The component a row is baked into: taken from the instance that actually sits
+// inside a component definition, whichever position it holds in the row.
+function auBuiltInto(r) {
+  const hit = (r.direct || []).find(i => i.inComponent && i.componentName);
+  return hit ? hit.componentName : '';
+}
 // How urgent a row is. Broken links first, then retired components baked into live
 // components (one fix clears every consumer), then retired components used in designs.
 function auSev(r) {
@@ -5141,7 +5152,7 @@ function auditRenderInner() {
       const first = r.direct[0];
       h += '<div class="au-tr row">' + badge(r.sev) +
         '<div class="au-cell" title="' + auEsc(auClean(r.c.name)) + '"><div class="name">' + auEsc(auClean(r.c.name)) + (r.direct.length > 1 ? ' <span class="au-cnt">×' + r.direct.length + '</span>' : '') + (r.variants && r.variants.size > 1 ? ' <span class="au-cnt">(' + r.variants.size + ' variants)</span>' : '') + '</div>' +
-        '<div class="sub">' + (r.sev === 'component' && first.componentName ? 'built into ' + auEsc(auClean(first.componentName)) + ' · ' : '') + auEsc(r.c.detectedBy.join(' · ')) + (r.c.replacement ? ' · replace with: ' + auEsc(r.c.replacement) : '') + (r.c.libraryName ? ' · ' + auEsc(r.c.libraryName) : '') + '</div></div>' +
+        '<div class="sub">' + (r.sev === 'component' ? 'built into ' + auEsc(auClean(auBuiltInto(r))) + ' · ' : '') + auEsc(r.c.detectedBy.join(' · ')) + (r.c.replacement ? ' · replace with: ' + auEsc(r.c.replacement) : '') + (r.c.libraryName ? ' · ' + auEsc(r.c.libraryName) : '') + '</div></div>' +
         locCell(first) + locBtn(first.nodeId) + '</div>';
       if (r.direct.length > 1) {
         h += '<div class="au-sub-rows">' + r.direct.map(i => '<div class="au-tr"><span class="lbl">instance</span><div class="au-cell"><div>' + auEsc(i.layerName) + '</div></div>' + locCell(i) + locBtn(i.nodeId) + '</div>').join('') + '</div>';
@@ -5199,7 +5210,7 @@ function auditReportPayload() {
   const rows = m.rows.filter(r => r.direct.length).map(r => {
     const f = r.direct[0];
     return {
-      status: r.c.status, sev: r.sev, builtInto: auClean(f.componentName || ''), name: auClean(r.c.name), count: r.direct.length,
+      status: r.c.status, sev: r.sev, builtInto: auClean(auBuiltInto(r)), name: auClean(r.c.name), count: r.direct.length,
       detectedBy: (r.c.detectedBy || []).join(' \u00b7 '), replacement: r.c.replacement || '',
       library: r.c.libraryName || '', page: auClean(f.pageName),
       frame: auClean(f.path.length ? f.path[f.path.length - 1] : f.layerName),

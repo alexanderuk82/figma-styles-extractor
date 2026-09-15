@@ -1,5 +1,29 @@
 # Changelog — DS Styles Extractor
 
+## v1.9.5 — 15 September 2026
+
+### A test suite guards every export, and the build refuses to ship a failing one
+- 36 tests run against the real plugin code (the same `ui.html` that ships), with no dependencies:
+  every format for styles and variables (Figma JSON, CSS, Flutter, W3C DTCG), multi-mode handling,
+  alias resolution, the Naming options, name clashes between collections, the audit severity model
+  and panel, and the rule that nothing in the plugin assumes which file it runs in.
+- Each output is checked as a file, not just as text: CSS has no duplicate properties and every
+  `var()` resolves; DTCG leaves have `$type` and `$value` and every `{reference}` resolves to a real
+  token; Dart has unique class names, valid identifiers and an explicit type on every constant.
+- `./build-zip.sh` now runs the suite first and does not build a zip if anything fails.
+  `npm test` runs it on its own.
+
+### Two Flutter bugs the tests caught straight away
+- **Numbers were emitted without a type**, so `static const space4 = 16;` was inferred as `int` by
+  Dart and could not be passed where Flutter expects a `double`. Every constant now carries an
+  explicit type: `Color`, `double`, `String` or `bool`.
+- A file whose name already ended in "Tokens" produced a class called `…TokensTokens`.
+
+### And one in the audit panel
+- A row graded "In component" named the wrong component in its note when the instance inside the
+  component was not the first one listed.
+
+
 ## v1.9.4 — 15 September 2026
 
 ### Naming now works in Flutter too, and the bar is where you expect it

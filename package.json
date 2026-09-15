@@ -1,0 +1,13 @@
+{
+  "name": "ds-styles-extractor",
+  "version": "1.9.5",
+  "private": true,
+  "description": "Figma plugin: extract styles and variables, generate documentation, audit component links, export to CSS / Flutter / W3C DTCG and publish to Bitbucket.",
+  "scripts": {
+    "test": "node --test 'test/**/*.test.js' && node test-remote-vars.js",
+    "build": "./build-zip.sh"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

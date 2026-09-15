@@ -10,6 +10,21 @@
 #   line 2: expires: YYYY-MM-DD      (optional — powers the expiry reminder in the Audit tab)
 set -eu
 cd "$(dirname "$0")"
+# No zip leaves this machine with a failing test. Every export format, the naming
+# options, the audit model and the any-file rules are exercised against the real
+# ui.html before packaging. Skip only with SKIP_TESTS=1, and only knowingly.
+if [ "${SKIP_TESTS:-0}" != "1" ]; then
+  echo "Running the test suite before packaging…"
+  if ! npm test --silent >/tmp/ds-plugin-tests.log 2>&1; then
+    echo
+    echo "TESTS FAILED — no zip was built. Details:"
+    grep -E "^\s*not ok|error:|expected|actual|RESULT" /tmp/ds-plugin-tests.log | head -40
+    exit 1
+  fi
+  echo "  $(grep -E '^# pass' /tmp/ds-plugin-tests.log | head -1 | tr -d '#') unit tests passed, $(grep -oE 'RESULT: [0-9]+ passed' /tmp/ds-plugin-tests.log | grep -oE '[0-9]+') remote-vars checks passed."
+fi
+node --check code.js || { echo "code.js has a syntax error — no zip built"; exit 1; }
+
 VERSION=$(sed -n 's/.*"name": *"DS Styles Extractor V\.\([0-9.]*\)".*/\1/p' manifest.json)
 [ -n "$VERSION" ] || { echo "Could not read version from manifest.json"; exit 1; }
 KEYFILE="../.key-figma.md"
