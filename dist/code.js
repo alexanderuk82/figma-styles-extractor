@@ -529,12 +529,22 @@ async function extractLibraryVariables() {
 
   var selfName = (figma.root && figma.root.name) || "";
 
-  // Enumerate every variable key in EXTERNAL libraries only (skip this file's
-  // own published collections — they duplicate the local export).
+  // This file's own published collections also appear in the team library list.
+  // Recognise them by KEY, not by name: a library is often published under a
+  // different name than the file carries, and matching on the name alone made
+  // the plugin import its own hundreds of variables as "external" in a library
+  // file. The name check stays only as a fallback.
+  var ownKeys = {};
+  try {
+    var localCols = figma.variables.getLocalVariableCollections();
+    for (var lk = 0; lk < localCols.length; lk++) { if (localCols[lk].key) ownKeys[localCols[lk].key] = true; }
+  } catch (e) {}
+
+  // Enumerate every variable key in EXTERNAL libraries only.
   var entries = [];
   for (var ci = 0; ci < libCols.length; ci++) {
     var lc = libCols[ci];
-    if (lc.libraryName === selfName) continue;
+    if (ownKeys[lc.key] || lc.libraryName === selfName) continue;
     var libVars = [];
     try { libVars = await figma.teamLibrary.getVariablesInLibraryCollectionAsync(lc.key); } catch (e) { libVars = []; }
     for (var vi = 0; vi < libVars.length; vi++) {
@@ -639,7 +649,12 @@ async function sendAllData() {
   // tagged (source:"global-library" + libraryName) and grouped by collection.
   try {
     var hasTeamLib = !!(figma.teamLibrary && figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync);
-    var globalCollections = await extractLibraryVariables();
+    // Whatever happens in the Team Library API, the panel must never be left
+    // waiting on it: give the phase a hard budget.
+    var globalCollections = await Promise.race([
+      extractLibraryVariables(),
+      new Promise(function (_, reject) { setTimeout(function () { reject(new Error("external libraries took longer than 90s")); }, 90000); }),
+    ]);
     if (globalCollections && globalCollections.length && variables.collections) {
       for (var rc = 0; rc < globalCollections.length; rc++) {
         variables.collections.push(globalCollections[rc]);
@@ -660,7 +675,7 @@ async function sendAllData() {
         globalsLoaded: { collections: globalCollections.length, variables: gVars },
       });
     } else {
-      figma.ui.postMessage({ type: "globals-done", ok: false, reason: hasTeamLib ? "no external library" : "teamLibrary unavailable" });
+      figma.ui.postMessage({ type: "globals-done", ok: true, reason: hasTeamLib ? "no external libraries in this file" : "teamLibrary unavailable" });
     }
   } catch (e) {
     console.error("[GlobalVars] library import failed (local export unaffected):", e);

@@ -1,5 +1,24 @@
 # Changelog — DS Styles Extractor
 
+## v1.9.1 — 15 September 2026
+
+### Fixed: opened in a library file, the panel stayed on "Reading your file…"
+Opened in the brand library, the styles and variables were counted in the header but the output stayed
+hidden behind the loading skeleton and the status read "Loading global library…" indefinitely. Two causes.
+- **The plugin was importing its own variables as if they were external.** It recognised the file's own
+  published collections by comparing the library name with the file name, and a library is often published
+  under a different name than the file carries. In a library file that meant hundreds of its own variables
+  being imported and resolved a second time. Own collections are now recognised by key.
+- **Local data was hidden while external libraries loaded.** It is now shown at once; the header says
+  "Synced · loading external libraries…" until they arrive, and the export works in the meantime.
+- The external-libraries phase has a hard 90-second budget, so it can never leave the panel waiting.
+
+### Every default now follows the open file
+- Download file names, the default branch name and the fallback Flutter class name derive from the file,
+  as the publish path and namespace already did. Nothing in the plugin assumes which file it is running in.
+- "Global library" wording replaced by "external libraries": any file can consume any library.
+
+
 ## v1.9.0 — 15 September 2026
 
 ### Fixed: the plugin behaved as if it only belonged to the app file

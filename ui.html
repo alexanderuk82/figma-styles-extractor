@@ -1056,7 +1056,8 @@ function getFlutterClassName() {
     var name = toPascalCase(fileName);
     if (name) return name;
   }
-  return 'DSStyles';
+  const slug = auCurrentFileSlug();
+  return slug ? toPascalCase(slug) + 'Tokens' : 'DSStyles';
 }
 function toCamel(name) {
   const parts = name.replace(/\//g, ' ').replace(/[^a-zA-Z0-9 ]/g, '').trim().split(/\s+/);
@@ -1480,6 +1481,11 @@ function formatVariablesFigma() {
 // raw Figma JSON is deliberately left untouched: it is a faithful dump used for diffs.
 let auNameOpts = { collection: true, dedupe: true, prefix: '', aliases: {} };
 let auFileName = '';   // the Figma file this panel is open in
+function auCurrentFileSlug() {
+  const n = auFileName || (stylesData && stylesData._meta && stylesData._meta.fileName) || (variablesData && variablesData._meta && variablesData._meta.fileName) || '';
+  const slug = auFileSlug(n);
+  return slug === 'tokens' ? '' : slug;
+}
 // A short namespace derived from the file name, e.g. "[Brand] Decibel Global Branding"
 // → "global-branding". Used as the default prefix and in the default publish path, so
 // two files never export under the same names or to the same file by accident.
@@ -1731,7 +1737,8 @@ function getFormattedOutput() {
 }
 
 function getFileInfo() {
-  const prefix = currentSection === 'styles' ? 'ds-styles' : 'ds-variables';
+  const slug = auCurrentFileSlug();
+  const prefix = (slug ? slug + '-' : 'ds-') + (currentSection === 'styles' ? 'styles' : 'variables');
   if (currentFormat === 'css') return { ext: '.css', mime: 'text/css', label: 'CSS Custom Properties', prefix };
   if (currentFormat === 'flutter') return { ext: '.dart', mime: 'text/plain', label: 'Flutter/Dart', prefix };
   if (currentFormat === 'dtcg') return { ext: '.tokens.json', mime: 'application/json', label: 'W3C DTCG Tokens', prefix };
@@ -2091,6 +2098,16 @@ function setSyncState(state) {
   btnText.textContent = 'Sync'; // status lives in the badge only; the button just spins while busy
   if (state === 'syncing') startOutputLoader(); else stopOutputLoader();
 }
+// Local data is in and shown; external libraries are still arriving. The output
+// stays visible — only the header says so.
+function setSyncPartial() {
+  const badge = document.getElementById('sync-badge');
+  const label = document.getElementById('sync-label');
+  badge.className = 'sync-badge syncing';
+  label.textContent = 'Synced \u00b7 loading external libraries\u2026';
+  document.getElementById('btn-sync').className = 'btn btn-sync';
+  stopOutputLoader();
+}
 
 // ── Output panel loading state: code skeleton + rotating status line ──
 const OL_STEPS = [
@@ -2098,7 +2115,7 @@ const OL_STEPS = [
   'Collecting paint, text, effect and grid styles\u2026',
   'Reading variable collections and their modes\u2026',
   'Following alias chains across collections\u2026',
-  'Pulling the global library catalogue\u2026',
+  'Reading the external libraries this file uses\u2026',
   'Almost there \u2014 building the preview\u2026',
 ];
 let _olTimer = null, _olStep = 0;
@@ -2149,7 +2166,7 @@ window.onmessage = (event) => {
     }
     auNamingRefresh(false); updateOutput(); return;
   }
-  if (msg.type === 'globals-done') { setSyncState('synced'); if (!msg.ok) console.warn('[GlobalVars]', msg.reason); return; }
+  if (msg.type === 'globals-done') { setSyncState('synced'); if (!msg.ok) { console.warn('[ExternalLibs]', msg.reason); showToast('External libraries not loaded: ' + msg.reason); } return; }
   if (msg.type === 'all-data') {
     stylesData = msg.payload.styles;
     variablesData = msg.payload.variables;
@@ -2177,11 +2194,9 @@ window.onmessage = (event) => {
     startTimer();
 
     if (msg.globalsPending) {
-      setSyncState('syncing');
-      const gl = document.getElementById('sync-label');
-      if (gl) gl.textContent = 'Loading global library\u2026';
+      setSyncPartial();
     } else if (msg.globalsLoaded) {
-      showToast('Global library loaded \u2014 ' + msg.globalsLoaded.variables.toLocaleString() + ' variables in ' + msg.globalsLoaded.collections + ' collections');
+      showToast('External libraries loaded \u2014 ' + msg.globalsLoaded.variables.toLocaleString() + ' variables in ' + msg.globalsLoaded.collections + ' collections');
     } else if (syncCount > 1) {
       showToast('Synced \u2014 ' + stylesData._meta.totalStyles + ' styles, ' + (variablesData._meta.totalVariables || 0) + ' variables');
     }
@@ -3039,9 +3054,9 @@ function pubDefaultFilePath(scope, format) {
   const ext = pubFileExt(format);
   // The file name carries the Figma file, so the global library and the mobile
   // app never publish to the same path by default.
-  const slug = auFileSlug(auFileName || (stylesData && stylesData._meta && stylesData._meta.fileName) || '');
+  const slug = auCurrentFileSlug();
   const what = scope === 'both' ? 'tokens' : scope;
-  return 'ds/tokens/' + (slug && slug !== 'tokens' ? slug + '-' : 'ds-') + what + ext;
+  return 'ds/tokens/' + (slug ? slug + '-' : 'ds-') + what + ext;
 }
 
 // ── Smart path update: keep user's directory, rebuild filename from scope + format ──
@@ -3061,7 +3076,8 @@ function pubUpdateFilePath(newFormat) {
 function pubDefaultBranch(scope) {
   const d = new Date();
   const ds = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-  return 'design-tokens/' + ds + '-' + scope;
+  const slug = auCurrentFileSlug();
+  return 'design-tokens/' + ds + '-' + (slug ? slug + '-' : '') + scope;
 }
 
 // ── Last PR config persistence ──
@@ -3816,8 +3832,8 @@ function openPublishModal() {
 
   // ── File path: saved directory + scope-based filename + format extension ──
   var ext = pubFileExt(_pubFormat);
-  var slug = auFileSlug(auFileName || (stylesData && stylesData._meta && stylesData._meta.fileName) || '');
-  var fileName = (slug && slug !== 'tokens' ? slug + '-' : 'ds-') + (_pubScope === 'both' ? 'tokens' : _pubScope) + ext;
+  var slug = auCurrentFileSlug();
+  var fileName = (slug ? slug + '-' : 'ds-') + (_pubScope === 'both' ? 'tokens' : _pubScope) + ext;
   var dir = (cfg && cfg.fileDir) ? cfg.fileDir : 'ds/tokens/';
   document.getElementById('pub-filepath').value = dir + fileName;
 
