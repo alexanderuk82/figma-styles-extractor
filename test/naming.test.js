@@ -93,3 +93,31 @@ describe("styles follow the namespace too", () => {
     assert.doesNotMatch(css, /--acme-acme-/, "prefix applied exactly once");
   });
 });
+
+describe("Flutter constants honour the naming options", () => {
+  test("with 'merge repeated words' OFF the constant names are exactly the historical toCamel output", () => {
+    ui.setNaming({ dedupe: false }); ui.setFormat("flutter");
+    const dart = ui.formatVariablesFlutter();
+    assert.match(dart, /static const Color colorBlue500 =/);
+    assert.match(dart, /static const double space4 =/);
+  });
+  test("with it ON an immediately repeated word is kept once, and nothing else moves", () => {
+    const d = fx.variables(); d.collections = [{ id: "c", name: "brand", modes: [{ id: "M", name: "M" }], variables: [
+      { id: "1", name: "color/color-red", resolvedType: "COLOR", valuesByMode: { M: { type: "color", hex: "#F00", r: 255, g: 0, b: 0, a: 1 } } },
+      { id: "2", name: "space/4", resolvedType: "FLOAT", valuesByMode: { M: { type: "number", value: 4 } } } ] }];
+    ui.setVariables(d, ["M"]); ui.setFormat("flutter");
+    ui.setNaming({ dedupe: false }); assert.match(ui.formatVariablesFlutter(), /colorColorred =/);
+    ui.setNaming({ dedupe: true });  const on = ui.formatVariablesFlutter();
+    assert.match(on, /colorRed =/, "color/color-red → colorRed"); assert.match(on, /space4 =/, "untouched name stays");
+    validateDart(on);
+  });
+  test("the hint tells the user when a switch changes nothing for this format", () => {
+    ui.setFormat("flutter"); ui.setNaming({});
+    ui.get("auNamingRefresh(false)");
+    const hint = ui.store["nb-hint"].textContent;
+    assert.match(hint, /Collection prefix: no effect here/, "8 collections → the collection stays in Dart class names");
+    assert.match(hint, /Dart keeps the collection/);
+    ui.setFormat("css"); ui.get("auNamingRefresh(false)");
+    assert.doesNotMatch(ui.store["nb-hint"].textContent, /Collection prefix: no effect/, "in CSS the prefix does change the output");
+  });
+});

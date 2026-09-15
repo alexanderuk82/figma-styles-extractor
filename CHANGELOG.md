@@ -1,5 +1,17 @@
 # Changelog — DS Styles Extractor
 
+## v1.9.7 — 15 September 2026
+
+### The Naming switches now reach Flutter, and say so when they cannot change anything
+- **Merge repeated words** did not apply to Flutter constant names at all; it does now. With it off, the
+  names are exactly what they have always been, so existing Flutter code keeps compiling.
+- **Collection prefix** cannot remove the collection from Flutter class names when several collections
+  are selected, because Dart needs each class name to be unique. That was silent; a line under the bar now
+  explains it, and the same line says when "Merge repeated words" has nothing to merge in these names.
+  A switch that changes nothing no longer looks broken.
+- Every Naming control has a tooltip saying what it does in CSS, W3C DTCG and Flutter, and what you will get.
+
+
 ## v1.9.6 — 15 September 2026
 
 ### Fixed: the Namespace tooltip showed a raw escape code
