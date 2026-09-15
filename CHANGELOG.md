@@ -1,5 +1,25 @@
 # Changelog — DS Styles Extractor
 
+## v1.10.0 — 15 September 2026
+
+### New: choose how Flutter constants are named — and camelCase is now the default
+- A **Constant style** selector in the Naming bar, shown for Flutter, remembered per file:
+  - **camelCase (Dart convention)** — the default. `global-primitive/color-palette/red-bright/base` becomes
+    `globalPrimitiveColorPaletteRedBrightBase`, as Effective Dart prescribes.
+  - **snake_case** — `global_primitive_color_palette_red_bright_base`, for teams that prefer it.
+  - **As before (hyphens removed)** — the names earlier exports produced, `globalprimitiveColorpaletteRedbrightBase`,
+    kept so code written against them keeps compiling until its owners decide to rename.
+- Every style yields a valid Dart identifier; a token that starts with a digit gets an `n` in front, which
+  also repairs names that never compiled before.
+
+### Why the default changed, and the safety nets
+The previous output was not camelCase or any other convention: it simply deleted the hyphens inside a word.
+The Dart convention is the right default for anyone starting fresh. For a codebase written against the old
+names, three things stand between this change and a surprise: the preview shows the new names before any
+export, a line under the Naming bar says the convention is in use and how to keep the old names, and the
+Code Compare step of the publish wizard lists every renamed constant before a pull request is created.
+
+
 ## v1.9.7 — 15 September 2026
 
 ### The Naming switches now reach Flutter, and say so when they cannot change anything

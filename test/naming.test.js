@@ -95,8 +95,8 @@ describe("styles follow the namespace too", () => {
 });
 
 describe("Flutter constants honour the naming options", () => {
-  test("with 'merge repeated words' OFF the constant names are exactly the historical toCamel output", () => {
-    ui.setNaming({ dedupe: false }); ui.setFormat("flutter");
+  test("'As before' style with merge OFF reproduces the historical toCamel output exactly", () => {
+    ui.setNaming({ dedupe: false, style: "legacy" }); ui.setFormat("flutter");
     const dart = ui.formatVariablesFlutter();
     assert.match(dart, /static const Color colorBlue500 =/);
     assert.match(dart, /static const double space4 =/);
@@ -106,8 +106,8 @@ describe("Flutter constants honour the naming options", () => {
       { id: "1", name: "color/color-red", resolvedType: "COLOR", valuesByMode: { M: { type: "color", hex: "#F00", r: 255, g: 0, b: 0, a: 1 } } },
       { id: "2", name: "space/4", resolvedType: "FLOAT", valuesByMode: { M: { type: "number", value: 4 } } } ] }];
     ui.setVariables(d, ["M"]); ui.setFormat("flutter");
-    ui.setNaming({ dedupe: false }); assert.match(ui.formatVariablesFlutter(), /colorColorred =/);
-    ui.setNaming({ dedupe: true });  const on = ui.formatVariablesFlutter();
+    ui.setNaming({ dedupe: false, style: "legacy" }); assert.match(ui.formatVariablesFlutter(), /colorColorred =/);
+    ui.setNaming({ dedupe: true, style: "legacy" });  const on = ui.formatVariablesFlutter();
     assert.match(on, /colorRed =/, "color/color-red → colorRed"); assert.match(on, /space4 =/, "untouched name stays");
     validateDart(on);
   });
@@ -119,5 +119,33 @@ describe("Flutter constants honour the naming options", () => {
     assert.match(hint, /Dart keeps the collection/);
     ui.setFormat("css"); ui.get("auNamingRefresh(false)");
     assert.doesNotMatch(ui.store["nb-hint"].textContent, /Collection prefix: no effect/, "in CSS the prefix does change the output");
+  });
+});
+
+
+describe("Dart identifier style", () => {
+  const NAME = "global-primitive/color-palette/red-bright/base";
+  test("camelCase is the default and follows Effective Dart", () => {
+    ui.setNaming({}); assert.equal(ui.get("auNameOpts.style"), "camel");
+    assert.equal(ui.get(`auFlutterConst(${JSON.stringify(NAME)})`), "globalPrimitiveColorPaletteRedBrightBase");
+  });
+  test("snake_case and 'As before' are available, and every style yields a valid Dart identifier", () => {
+    ui.setNaming({ style: "snake" }); assert.equal(ui.get(`auFlutterConst(${JSON.stringify(NAME)})`), "global_primitive_color_palette_red_bright_base");
+    ui.setNaming({ style: "legacy", dedupe: false }); assert.equal(ui.get(`auFlutterConst(${JSON.stringify(NAME)})`), "globalprimitiveColorpaletteRedbrightBase");
+    for (const style of ["camel", "snake", "legacy"]) {
+      ui.setNaming({ style });
+      for (const n of [NAME, "4xl/size", "space/4", "a//b", "x-_-y"]) {
+        assert.match(ui.get(`auFlutterConst(${JSON.stringify(n)})`), /^[a-z_][A-Za-z0-9_]*$/, `${style}: ${n}`);
+      }
+    }
+  });
+  test("the whole Flutter export stays valid Dart in every style", () => {
+    ui.setFormat("flutter");
+    for (const style of ["camel", "snake", "legacy"]) { ui.setNaming({ style }); validateDart(ui.formatVariablesFlutter()); }
+  });
+  test("the style is remembered with the other naming settings and restored on load", () => {
+    ui.onmessage({ type: "naming-data", payload: { style: "snake" }, fileId: "f", fileName: "Acme" });
+    assert.equal(ui.get("auNameOpts.style"), "snake");
+    assert.equal(ui.store["nb-style"].value, "snake");
   });
 });

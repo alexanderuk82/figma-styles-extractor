@@ -463,6 +463,7 @@ body.audit-mode .naming-note{display:none!important}
 .nb-title{font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--figma-color-text-secondary,#888)}
 .nb-opt{display:inline-flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;color:var(--figma-color-text,#1a1a1a)}
 .nb-opt input[type=checkbox]{margin:0;cursor:pointer}
+.nb-style select{padding:4px 7px;border:1px solid var(--figma-color-border,#ddd);border-radius:5px;background:var(--figma-color-bg,#fff);color:var(--figma-color-text,#1a1a1a);font-size:12px;font-family:inherit}
 .nb-prefix input{width:90px;padding:4px 7px;border:1px solid var(--figma-color-border,#ddd);border-radius:5px;background:var(--figma-color-bg,#fff);color:var(--figma-color-text,#1a1a1a);font-size:12px;font-family:inherit}
 .nb-more{border:1px solid var(--figma-color-border,#ddd);background:var(--figma-color-bg,#fff);color:var(--figma-color-text,#1a1a1a);border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
 .nb-more.on{background:#7a1c29;color:#fff;border-color:#7a1c29}
@@ -748,6 +749,9 @@ body.audit-mode .naming-bar{display:none!important}
   <label class="nb-opt au-tip" data-tip="Puts the collection name in front of every token. CSS: --primitives-color-red. W3C DTCG: primitives.color.red. Flutter: the collection becomes part of the class name (PrimitivesLight). Switched off, the collection disappears from the names. One exception: in Flutter with several collections selected it stays in the class names, because Dart needs each class name to be unique."><input type="checkbox" id="nb-collection" checked> Collection prefix</label>
   <label class="nb-opt au-tip" data-tip="When a word repeats itself immediately, it is kept once: brand-brand-primitive becomes brand-primitive. Useful when the collection name and the token name start with the same word. It has no effect on names where nothing repeats."><input type="checkbox" id="nb-dedupe" checked> Merge repeated words</label>
   <label class="nb-opt nb-prefix au-tip" data-tip="Goes in front of every token from this file. In CSS it is the first word of each custom property; in W3C DTCG it is the top-level key; in Flutter it starts every class name. Two files with different namespaces can be merged by a build without one overwriting the other.">Namespace <input type="text" id="nb-prefix" placeholder="type any name" autocomplete="off"></label><button type="button" class="nb-more" id="nb-suggest" title="Suggests a name from this file&rsquo;s title. Edit it freely afterwards.">Suggest from file</button>
+  <label class="nb-opt nb-style au-tip" id="nb-style-wrap" data-tip="How a token path becomes a Dart constant name. camelCase is the Dart convention (globalPrimitiveColorPaletteRedBrightBase). snake_case if your team prefers it. &lsquo;As before&rsquo; keeps the names earlier exports produced, with hyphens simply removed, so existing code keeps compiling while you decide.">Constant style
+    <select id="nb-style"><option value="camel">camelCase (Dart convention)</option><option value="snake">snake_case</option><option value="legacy">As before (hyphens removed)</option></select>
+  </label>
   <button type="button" class="nb-more au-tip" id="nb-more" data-tip="Give each collection a different name in the export, for example primitives as prim. Leave a row blank to keep the real name. References follow the new names, so nothing breaks.">Per collection</button>
   <span class="nb-example" id="nb-example"></span>
   <div class="nb-hint" id="nb-hint"></div>
@@ -1505,7 +1509,10 @@ function formatVariablesFigma() {
 // (e.g. brand-primitive/type/…), so prepending the collection can produce names like
 // primitives-global-global-primitive-… Everything here is configurable, and the
 // raw Figma JSON is deliberately left untouched: it is a faithful dump used for diffs.
-let auNameOpts = { collection: true, dedupe: true, prefix: '', aliases: {} };
+let auNameOpts = { collection: true, dedupe: true, prefix: '', aliases: {}, style: 'camel' };
+// style: how a token path becomes a Dart identifier — 'camel' (Effective Dart), 'snake', or
+// 'legacy' (the historical output, hyphens dropped: globalprimitiveColorpalette), kept so code
+// written against older exports keeps compiling until its owners choose to rename.
 let auFileName = '';   // the Figma file this panel is open in
 function auCurrentFileSlug() {
   const n = auFileName || (stylesData && stylesData._meta && stylesData._meta.fileName) || (variablesData && variablesData._meta && variablesData._meta.fileName) || '';
@@ -1552,9 +1559,22 @@ function auTokenSegments(c, varName, namer) {
 // the historical toCamel output, so existing Flutter code keeps compiling; with it on,
 // a word that repeats itself immediately is kept once.
 function auFlutterConst(varName) {
-  if (!auNameOpts.dedupe) return toCamel(varName);
-  const words = auDedupeWords(String(varName).split(/[\/\-\s]+/).filter(Boolean));
-  return toCamel(words.join(' '));
+  const style = auNameOpts.style || 'camel';
+  if (style === 'legacy') {
+    const id = auNameOpts.dedupe
+      ? toCamel(auDedupeWords(String(varName).split(/[\/\-\s]+/).filter(Boolean)).join(' '))
+      : toCamel(varName);
+    return /^[0-9]/.test(id) ? 'n' + id : id;   // never valid Dart before either, so nothing that compiled changes
+  }
+  let words = String(varName).split(/[\/\-_\s]+/).filter(Boolean);
+  if (auNameOpts.dedupe) words = auDedupeWords(words);
+  words = words.map(w => w.replace(/[^a-zA-Z0-9]/g, '')).filter(Boolean);
+  if (!words.length) return 'token';
+  let id = style === 'snake'
+    ? words.map(w => w.toLowerCase()).join('_')
+    : words.map((w, i) => i === 0 ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join('');
+  if (/^[0-9]/.test(id)) id = (style === 'snake' ? 'n_' : 'n') + id;   // a Dart identifier cannot start with a digit
+  return id;
 }
 // Flat slug for CSS: dedupe reaches inside hyphens too, since it is all one name
 function auCssSlug(c, varName, namer) {
@@ -2207,13 +2227,15 @@ window.onmessage = (event) => {
   const msg = event.data.pluginMessage;
   if (msg.type === 'naming-data') {
     if (msg.fileName) auFileName = msg.fileName;
-    auNameOpts = { collection: true, dedupe: true, prefix: '', aliases: {} };   // start clean per file
+    auNameOpts = { collection: true, dedupe: true, prefix: '', aliases: {}, style: 'camel' };   // start clean per file
     if (msg.payload) {
       auNameOpts = Object.assign(auNameOpts, msg.payload);
       document.getElementById('nb-collection').checked = !!auNameOpts.collection;
       document.getElementById('nb-dedupe').checked = !!auNameOpts.dedupe;
       document.getElementById('nb-prefix').value = auNameOpts.prefix || '';
       auNameOpts.aliases = auNameOpts.aliases || {};
+      auNameOpts.style = auNameOpts.style || 'camel';
+      document.getElementById('nb-style').value = auNameOpts.style;
     }
     auNamingRefresh(false); updateOutput(); return;
   }
@@ -5272,6 +5294,7 @@ function auNamingApplicable() {
 // Collection controls only make sense for variables; on Styles the bar shows the namespace alone
 function auNamingSyncVisibility() {
   const varsOnly = currentSection === 'variables';
+  const st = document.getElementById('nb-style-wrap'); if (st) st.style.display = (varsOnly && currentFormat === 'flutter') ? '' : 'none';
   ['nb-collection', 'nb-dedupe', 'nb-more'].forEach(id => { const el = document.getElementById(id); if (el) (el.closest('label') || el).style.display = varsOnly ? '' : 'none'; });
   if (!varsOnly) { document.getElementById('naming-cols').classList.remove('show'); document.getElementById('nb-more').classList.remove('on'); }
 }
@@ -5330,6 +5353,9 @@ function auNamingHints() {
       auNameOpts = Object.assign({}, saved, { dedupe: !saved.dedupe });
       if (out() === base) notes.push('Merge repeated words: no effect here \u2014 nothing in these names repeats itself.');
       auNameOpts = saved;
+      if (currentFormat === 'flutter' && (saved.style || 'camel') === 'camel') {
+        notes.push('Constants use camelCase, the Dart convention. Code written against older exports may expect the previous names \u2014 choose \u201cAs before\u201d to keep those. The Code Compare step shows every renamed constant before a pull request is created.');
+      }
     }
   } catch (e) { auNameOpts = auNameOpts || {}; }
   el.textContent = notes.join('  ');
@@ -5370,6 +5396,7 @@ function auNamingChanged() {
   auNameOpts.collection = document.getElementById('nb-collection').checked;
   auNameOpts.dedupe = document.getElementById('nb-dedupe').checked;
   auNameOpts.prefix = document.getElementById('nb-prefix').value.trim();
+  auNameOpts.style = document.getElementById('nb-style').value || 'camel';
   auNamingRefresh(true);
   if (document.getElementById('naming-cols').classList.contains('show')) auNamingRenderCols();
   updateOutput();
@@ -5377,6 +5404,7 @@ function auNamingChanged() {
 document.getElementById('nb-collection').onchange = auNamingChanged;
 document.getElementById('nb-dedupe').onchange = auNamingChanged;
 document.getElementById('nb-prefix').oninput = auNamingChanged;
+document.getElementById('nb-style').onchange = auNamingChanged;
 document.getElementById('nb-suggest').onclick = () => { document.getElementById('nb-prefix').value = auFileSlug(auFileName); auNamingChanged(); };
 parent.postMessage({ pluginMessage: { type: 'naming-get' } }, '*');
 

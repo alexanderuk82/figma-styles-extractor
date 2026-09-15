@@ -66,7 +66,7 @@ function load() {
   };
   api.setStyles = (data) => { sandbox.__s = data; api.set(`stylesData = __s; currentSection = 'styles';`); };
   api.setFormat = (f) => api.set(`currentFormat = '${f}';`);
-  api.setNaming = (o) => { sandbox.__o = o; api.set(`auNameOpts = Object.assign({ collection: true, dedupe: true, prefix: '', aliases: {} }, __o);`); };
+  api.setNaming = (o) => { sandbox.__o = o; api.set(`auNameOpts = Object.assign({ collection: true, dedupe: true, prefix: '', aliases: {}, style: 'camel' }, __o);`); };
   api.setFile = (n) => { sandbox.__f = n; api.set(`auFileName = __f;`); };
   api.setAudit = (p) => { sandbox.__p = p; api.set(`auditLast = __p; auditFilter = 'all';`); };
   api.onmessage = (msg) => { sandbox.__msg = msg; api.set(`window.onmessage({ data: { pluginMessage: __msg } });`); };
