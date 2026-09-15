@@ -1,5 +1,16 @@
 # Changelog — DS Styles Extractor
 
+## v1.9.2 — 15 September 2026
+
+### The namespace now covers styles as well as variables
+- Colours, typography and effects exported as CSS or W3C DTCG from two different files could still collide
+  once merged, because the Naming bar only applied to variables. The namespace now wraps the styles export
+  too: the top-level key in DTCG, the leading segment of every custom property in CSS. With no namespace
+  set, the output is exactly what it was.
+- The Naming bar appears on the Styles tab for CSS and DTCG, showing only the namespace, since styles have no
+  collections to rename. The live example follows.
+
+
 ## v1.9.1 — 15 September 2026
 
 ### Fixed: opened in a library file, the panel stayed on "Reading your file…"
