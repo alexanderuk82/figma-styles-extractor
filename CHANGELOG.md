@@ -1,5 +1,25 @@
 # Changelog — DS Styles Extractor
 
+## v1.9.4 — 15 September 2026
+
+### Naming now works in Flutter too, and the bar is where you expect it
+- The Naming bar only appeared for CSS and W3C DTCG, so on Flutter there was nowhere to change the names.
+  It now appears for Flutter as well, and drives the Dart class names: the **Namespace** is the leading
+  part of every class (`AcmePrimitives`), a per-collection alias replaces the collection part
+  (`AcmePrim`), and the live example shows the class and constant you will get.
+- With several collections the collection part always stays in the class name, because Dart needs one
+  class name per collection. The "Collection prefix" switch affects single-collection exports only.
+- On the raw Figma JSON format, where naming is intentionally untouched, a one-line note says so and
+  points to the formats where it applies.
+
+### "External", not "global"
+- Collections that come from a library this file uses were badged **GLOBAL**. Inside a brand library that
+  reads wrong: they are simply external. The badge now says **EXTERNAL**, with the source library named
+  beside it. Where two collections share a name, the external one is told apart by its library's name
+  (`primitives-acme-tokens`, `AcmeTokensPrimitives`) instead of a fixed word, which also keeps two external
+  libraries with the same collection name apart.
+
+
 ## v1.9.3 — 15 September 2026
 
 ### No project names anywhere in the plugin
